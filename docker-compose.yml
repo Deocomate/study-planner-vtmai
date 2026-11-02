@@ -1,0 +1,43 @@
+services:
+  study-planner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: study-planner
+    restart: unless-stopped
+    # Dùng expose thay vì ports để tránh trùng port trên máy chủ/VPS.
+    # Coolify (Traefik) sẽ định tuyến qua mạng nội bộ Docker tới port 3000.
+    expose:
+      - "3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - DATA_DIR=/data
+      - APP_BASE_URL=${APP_BASE_URL:-}
+      - COOKIE_SECURE=${COOKIE_SECURE:-1}
+      - SETUP_CODE=${SETUP_CODE:-}
+      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-10}
+      # Cấu hình gửi email nhắc việc (tuỳ chọn: Resend hoặc SMTP)
+      - MAIL_FROM=${MAIL_FROM:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-465}
+      - SMTP_SECURE=${SMTP_SECURE:-tls}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      # Tích hợp AI đọc ảnh / PDF bài tập (tuỳ chọn)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - EXTRACTION_MODEL=${EXTRACTION_MODEL:-claude-sonnet-5-5}
+    volumes:
+      - study_data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  study_data:
+    name: study_planner_data

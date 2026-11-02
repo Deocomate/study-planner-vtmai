@@ -1,0 +1,11 @@
+{
+  "name": "family-study-planner",
+  "version": "1.0.0",
+  "description": "Family study planner for Ben and Shin: child boards, Parent Dashboard, scheduling, reminders, monthly reports.",
+  "private": true,
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "NODE_NO_WARNINGS=1 node --env-file-if-exists=.env server/index.js",
+    "test": "NODE_NO_WARNINGS=1 NODE_ENV=test node --test tests/*.test.js"
+  }
+}

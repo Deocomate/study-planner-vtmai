@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.env
+
+# Local runtime data & uploads
+data/
+legacy-server-prototype/data/
+*/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+!database/study_planner.sqlite
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db

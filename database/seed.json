@@ -1,0 +1,231 @@
+{
+  "_note": "Default data of the current web app (fresh state). Ids are random per browser.",
+  "people": [
+    {
+      "id": "ben",
+      "name": "Ben",
+      "grade": 5
+    },
+    {
+      "id": "shin",
+      "name": "Shin",
+      "grade": 4
+    },
+    {
+      "id": "mom",
+      "name": "Mẹ",
+      "role": "parent"
+    }
+  ],
+  "teachers": [
+    "Vinschool",
+    "Cô Linh Cindy",
+    "Cô Vinh",
+    "Cô Mẫn",
+    "Cô Giang",
+    "EC",
+    "Home"
+  ],
+  "subjects": [
+    "Maths",
+    "EFL",
+    "Science",
+    "Daily practice English",
+    "Shadowing",
+    "Writing",
+    "Tiếng Việt",
+    "Việt Nam học",
+    "Debate"
+  ],
+  "class_blocks": [
+    {
+      "c": "ben",
+      "day": 1,
+      "s": "07:00",
+      "e": "16:30",
+      "t": "Vinschool"
+    },
+    {
+      "c": "ben",
+      "day": 2,
+      "s": "07:00",
+      "e": "16:30",
+      "t": "Vinschool"
+    },
+    {
+      "c": "ben",
+      "day": 3,
+      "s": "07:00",
+      "e": "16:30",
+      "t": "Vinschool"
+    },
+    {
+      "c": "ben",
+      "day": 4,
+      "s": "07:00",
+      "e": "16:30",
+      "t": "Vinschool"
+    },
+    {
+      "c": "ben",
+      "day": 5,
+      "s": "07:00",
+      "e": "16:30",
+      "t": "Vinschool"
+    },
+    {
+      "c": "shin",
+      "day": 1,
+      "s": "07:00",
+      "e": "16:30",
+      "t": "Vinschool"
+    },
+    {
+      "c": "shin",
+      "day": 2,
+      "s": "07:00",
+      "e": "16:30",
+      "t": "Vinschool"
+    },
+    {
+      "c": "shin",
+      "day": 3,
+      "s": "07:00",
+      "e": "16:30",
+      "t": "Vinschool"
+    },
+    {
+      "c": "shin",
+      "day": 4,
+      "s": "07:00",
+      "e": "16:30",
+      "t": "Vinschool"
+    },
+    {
+      "c": "shin",
+      "day": 5,
+      "s": "07:00",
+      "e": "16:30",
+      "t": "Vinschool"
+    },
+    {
+      "c": "ben",
+      "day": 4,
+      "s": "20:00",
+      "e": "21:30",
+      "t": "Writing cô Ngô Bla"
+    },
+    {
+      "c": "ben",
+      "day": 5,
+      "s": "19:30",
+      "e": "21:30",
+      "t": "Debate EC"
+    },
+    {
+      "c": "ben",
+      "day": 6,
+      "s": "08:00",
+      "e": "10:00",
+      "t": "Cô Linh Cindy"
+    },
+    {
+      "c": "ben",
+      "day": 6,
+      "s": "14:00",
+      "e": "15:00",
+      "t": "Piano"
+    },
+    {
+      "c": "ben",
+      "day": 7,
+      "s": "10:30",
+      "e": "12:00",
+      "t": "Science / Math"
+    },
+    {
+      "c": "ben",
+      "day": 7,
+      "s": "16:00",
+      "e": "18:00",
+      "t": "Bóng rổ / Cầu lông"
+    },
+    {
+      "c": "shin",
+      "day": 3,
+      "s": "19:40",
+      "e": "21:40",
+      "t": "Cô Linh Cindy"
+    },
+    {
+      "c": "shin",
+      "day": 4,
+      "s": "18:00",
+      "e": "19:00",
+      "t": "Science cô Giang"
+    },
+    {
+      "c": "shin",
+      "day": 7,
+      "s": "16:30",
+      "e": "18:00",
+      "t": "Bóng rổ"
+    },
+    {
+      "c": "shin",
+      "day": 7,
+      "s": "19:30",
+      "e": "20:30",
+      "t": "Maths cô Mẫn"
+    }
+  ],
+  "rewards": [
+    {
+      "emoji": "📱",
+      "name": "iPad 15 minutes",
+      "cost": 20,
+      "ipadMin": 15
+    },
+    {
+      "emoji": "📱",
+      "name": "iPad 30 minutes",
+      "cost": 40,
+      "ipadMin": 30
+    },
+    {
+      "emoji": "🍦",
+      "name": "Ice cream treat",
+      "cost": 50,
+      "ipadMin": 0
+    },
+    {
+      "emoji": "🎁",
+      "name": "Gift worth 50,000 VND",
+      "cost": 150,
+      "ipadMin": 0
+    },
+    {
+      "emoji": "🎬",
+      "name": "Choose the family movie",
+      "cost": 80,
+      "ipadMin": 0
+    },
+    {
+      "emoji": "🎁",
+      "name": "Gift worth 100,000 VND",
+      "cost": 300,
+      "ipadMin": 0
+    }
+  ],
+  "point_rules": {
+    "per5": 1,
+    "ontime": 5,
+    "approved": 10,
+    "daily": 5,
+    "ipadCap": 60
+  },
+  "names": {
+    "ben": "Ben",
+    "shin": "Shin"
+  }
+}
