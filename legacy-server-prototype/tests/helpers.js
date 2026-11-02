@@ -7,7 +7,7 @@ const { once } = require('node:events');
 process.env.NODE_ENV = 'test';
 process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 process.env.DATA_DIR = process.env.DATA_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'fp-test-'));
-delete process.env.SETUP_CODE; delete process.env.ANTHROPIC_API_KEY; delete process.env.SMTP_HOST; delete process.env.RESEND_API_KEY; delete process.env.EMAIL_DEV_OUTBOX;
+delete process.env.SETUP_CODE; delete process.env.SMTP_HOST; delete process.env.RESEND_API_KEY; delete process.env.EMAIL_DEV_OUTBOX;
 
 const T = require('../server/time');
 const dbm = require('../server/db');

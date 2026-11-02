@@ -45,7 +45,6 @@ Chuyển qua tab **Environment Variables** trong Coolify và thêm các biến c
 | `SMTP_HOST` | `smtp.gmail.com` | Tuỳ chọn | Nếu gửi qua Gmail SMTP (port 465, SSL). |
 | `SMTP_USER` | `email-cua-ban@gmail.com` | Tuỳ chọn | Tài khoản Gmail. |
 | `SMTP_PASS` | `xxxx xxxx xxxx xxxx` | Tuỳ chọn | App Password 16 ký tự của Google. |
-| `ANTHROPIC_API_KEY` | `sk-ant-...` | Tuỳ chọn | Khóa API Claude nếu muốn tính năng đọc bài tập tự động từ ảnh/PDF. |
 
 ### Bước 5: Kiểm Tra Volume Lưu Trữ Dữ Liệu
 Trong `docker-compose.yml`, volume được định nghĩa:

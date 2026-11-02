@@ -26,9 +26,6 @@ services:
       - SMTP_SECURE=${SMTP_SECURE:-tls}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASS=${SMTP_PASS:-}
-      # Tích hợp AI đọc ảnh / PDF bài tập (tuỳ chọn)
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - EXTRACTION_MODEL=${EXTRACTION_MODEL:-claude-sonnet-5-5}
     volumes:
       - study_data:/data
     healthcheck:
