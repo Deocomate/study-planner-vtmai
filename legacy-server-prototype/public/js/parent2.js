@@ -25,8 +25,9 @@ export async function renderImport(body) {
   const tpl = h('button', { class: 'btn', type: 'button', onclick: action(async () => { const r = await post('/api/parent/templates/generate', { child_ids: chosen(), week_start: week.value }); showPreview(out, r, chosen(), week.value); }) }, 'Start from my weekly template');
   const manual = h('button', { class: 'btn', type: 'button', onclick: () => showPreview(out, { status: 'ok', items: [blankItem(chosen()[0])], notes: ['Enter the task by hand.'] }, chosen(), week.value) }, 'Type a task by hand');
   mount(body, h('div', { class: 'stack' }, h('div', { class: 'card stack' }, h('h2', null, 'Add this week’s work'),
-    h('p', { class: 'muted small' }, 'Paste weekly tasks, use your weekly template, or type tasks by hand. Uploaded files (PDFs, images) are attached as reference materials for children.'),
-    h('fieldset', null, h('legend', null, 'For whom?'), kids), field('Intended week (any day in it)', week), field('Pasted text', text), field('Pictures, PDFs or text files to attach (up to 10 MB each)', files), field('Google Drive links (not opened automatically)', links),
+    st.extraction_connected ? h('p', { class: 'okbox card small' }, `Reading images and PDFs is connected (${st.model}). Results are only suggestions: you confirm everything before it is saved.`)
+      : h('p', { class: 'warnbox card small' }, '⚠ Reading images and PDFs is NOT connected yet (no ANTHROPIC_API_KEY on the server). Pasted text, your weekly template and typing by hand all work now. Uploaded files can still be attached but will not be read.'),
+    h('fieldset', null, h('legend', null, 'For whom?'), kids), field('Intended week (any day in it)', week), field('Pasted text', text), field('Pictures, PDFs or text files (up to 10 MB each)', files), field('Google Drive links (not opened automatically)', links),
     h('div', { class: 'row' }, go, tpl, manual)), out));
 }
 const blankItem = (child) => ({ child_id: child, title: '', subject: 'Other', task_type: 'other', est_minutes: 60, est_source: 'parent', deadline: null, target: null, priority: 2, review_required: 0, resource_link: null, work_link: null, flags: [], from_source: [] });
@@ -34,6 +35,8 @@ const blankItem = (child) => ({ child_id: child, title: '', subject: 'Other', ta
 function showPreview(out, r, childIds, weekStart) {
   const items = r.items.map((i) => ({ ...i, include: true }));
   const notes = (r.notes || []).map((n) => h('li', null, n));
+  if (r.status === 'not_connected') notes.unshift(h('li', null, 'Reading from pictures/PDFs is not connected, so nothing was read from them. Use pasted text or type tasks by hand.'));
+  if (r.status === 'failed') notes.unshift(h('li', null, 'Reading failed. Nothing was saved. You can still enter tasks by hand.'));
   const rowsEl = h('div', { class: 'stack' });
   const draw = () => mount(rowsEl, items.map((it, idx) => itemEditor(it, idx, items, draw)));
   draw();
@@ -73,9 +76,10 @@ function itemEditor(it, idx, items, draw) {
 export async function renderTimetables(body) {
   const data = Object.fromEntries(await Promise.all(state.children.map(async (c) => [c.id, await get(`/api/parent/timetable/${c.id}`)])));
   const tpls = await get('/api/parent/templates');
-  const parts = [h('p', { class: 'muted' }, 'Everything the planner needs to know about the week.')];
+  const parts = [h('p', { class: 'muted' }, 'Everything the planner needs to know about the week. Items marked ⚠ were guessed from your timetable photos or from defaults: please confirm them.')];
   for (const c of state.children) parts.push(childTimetable(c, data[c.id]));
   parts.push(templatesCard(tpls.templates));
+  parts.push(timetableUpload());
   mount(body, h('div', { class: 'stack' }, parts));
 }
 function childTimetable(c, d) {
@@ -145,7 +149,21 @@ function templateDialog(t) {
       const v = { child_id: f.child.value, title: f.title.value, subject: f.subject.value, task_type: f.type.value, deadline_weekday: Number(f.dd.value), deadline_time: f.dt.value, target_weekday: f.td.value ? Number(f.td.value) : null, target_time: f.tt.value, estimate_min: f.est.value ? Number(f.est.value) : null, review_required: f.rv.checked ? 1 : 0, active: f.act.checked ? 1 : 0 };
       if (t) await put(`/api/parent/templates/${t.id}`, v); else await post('/api/parent/templates', v); toast('Saved.'); rerender(); } }] });
 }
-
+function timetableUpload() {
+  const file = h('input', { type: 'file', multiple: true, accept: '.pdf,.png,.jpg,.jpeg,.webp' }); const out = h('div');
+  return h('section', { class: 'card stack' }, h('h2', null, 'Read a timetable picture'), h('p', { class: 'muted small' }, 'Needs the extraction service (ANTHROPIC_API_KEY). If it is not connected you will be told. Rows are only a suggestion; nothing is saved until you confirm.'), file,
+    h('button', { class: 'btn', type: 'button', onclick: action(async () => {
+      const ids = []; for (const f of file.files) { const r = await api('POST', `/api/files?kind=import&name=${encodeURIComponent(f.name)}`, undefined, { raw: f }); ids.push(r.file.id); }
+      const r = await post('/api/parent/timetable/extract', { file_ids: ids });
+      if (r.status !== 'ok') return mount(out, h('div', { class: 'card warnbox' }, (r.notes || []).join(' ')));
+      const rows = r.blocks.map((b) => ({ ...b, include: true, child_id: b.child_id || 'ben' }));
+      mount(out, h('div', { class: 'stack' }, rows.map((b) => h('div', { class: `card ${b.flags.length ? 'warnbox' : ''}` },
+        h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: true, onchange: (e) => (b.include = e.target.checked) }), `${kidName(b.child_id)} · ${DOW[b.weekday] || '?'} ${b.start_time}–${b.end_time} ${b.title}`), b.flags.length ? h('ul', { class: 'small warn-line' }, b.flags.map((x) => h('li', null, x))) : null)),
+        h('button', { class: 'btn primary', type: 'button', onclick: action(async () => {
+          const ok = rows.filter((b) => b.include && b.start_time && b.end_time && b.weekday);
+          await post('/api/parent/blocks/bulk', { blocks: ok.map((b) => ({ ...b, needs_confirmation: 1 })) }); toast(`Added ${ok.length} item(s), marked for confirmation.`); rerender(); }) }, 'Add ticked rows')));
+    }) }, 'Read the picture'), out);
+}
 
 // ================= SETTINGS =================
 export async function renderSettings(body) {

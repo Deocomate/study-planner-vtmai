@@ -1,9 +1,14 @@
 'use strict';
-// Turns pasted text and uploaded files into an editable list of proposed tasks. Nothing is saved until the parent confirms.
-// Fully offline rule-based parser: no external AI, zero dependencies, no third-party API calls.
+// Turns pasted text, screenshots and PDFs into an editable list of proposed tasks. Nothing is saved until the parent confirms.
+//  - Text: a built-in rule-based reader (works offline, no cost).
+//  - Images / PDFs: the Claude API, only when ANTHROPIC_API_KEY is set. Otherwise the feature reports "not connected" (no fake results).
 const { get, all } = require('./db');
 const T = require('./time');
+const { readFile } = require('./files');
 const { defaultsFor, guessType } = require('./tasks');
+
+const EXTRACTION_MODEL = () => process.env.EXTRACTION_MODEL || 'claude-sonnet-5-5';
+const aiConfigured = () => !!process.env.ANTHROPIC_API_KEY;
 
 // ---------- helpers ----------
 const WEEKDAYS = [
@@ -38,104 +43,138 @@ function parseDuration(line) {
   if (m) return { minutes: parseInt(m[1], 10) * 60, text: m[0] };
   return null;
 }
-
-// Times: "7:00", "07:00", "20h30", "8pm", "8:30 pm", "21h".
 function parseTime(line) {
-  let m = line.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
-  if (m) return { time: `${String(m[1]).padStart(2, '0')}:${m[2]}`, text: m[0] };
-  m = line.match(/\b([01]?\d|2[0-3])h([0-5]\d)\b/i);
-  if (m) return { time: `${String(m[1]).padStart(2, '0')}:${m[2]}`, text: m[0] };
-  m = line.match(/\b(1[0-2]|[1-9])(?::([0-5]\d))?\s*(am|pm)\b/i);
-  if (m) {
-    let h = parseInt(m[1], 10);
-    const pm = m[3].toLowerCase() === 'pm';
-    if (pm && h < 12) h += 12; else if (!pm && h === 12) h = 0;
-    return { time: `${String(h).padStart(2, '0')}:${m[2] || '00'}`, text: m[0] };
-  }
+  let m = line.match(/\b(\d{1,2})[:h](\d{2})\b/i) || line.match(/\b(\d{1,2})\s*h\b(?!\w)/i);
+  if (m) { const h = parseInt(m[1], 10), mi = m[2] ? parseInt(m[2], 10) : 0; if (h < 24 && mi < 60) return { h, mi, text: m[0] }; }
+  m = line.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+  if (m) { let h = parseInt(m[1], 10) % 12; if (/pm/i.test(m[3])) h += 12; return { h, mi: m[2] ? parseInt(m[2], 10) : 0, text: m[0] }; }
   return null;
 }
 
-// Dates: full ISO date 2026-10-29, 29/10, or weekday name relative to weekStart.
-function parseDeadline(line, weekStart) {
-  let m = line.match(/\b(20\d\d-[01]\d-[0-3]\d)\b/);
-  if (m) return { date: m[1], weekday: T.weekdayOf(m[1]), text: m[0], fromIso: true };
-  m = line.match(/\b([0-3]?\d)[/-]([01]?\d)(?:[/-](20\d\d))?\b/);
-  if (m) {
-    const y = m[3] ? parseInt(m[3], 10) : parseInt(weekStart.slice(0, 4), 10);
-    const date = `${y}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
-    if (T.isDate(date)) return { date, weekday: T.weekdayOf(date), text: m[0], fromDayMonth: true };
-  }
-  for (const [w, re] of WEEKDAYS) {
-    if (re.test(line)) {
-      const date = T.addDays(weekStart, w - 1);
-      return { date, weekday: w, text: line.match(re)[0], fromWeekday: true };
-    }
-  }
-  return null;
-}
-
-// ---------- offline rule-based text reader ----------
-function parseText(raw, weekStart) {
-  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+// Reads one assignment per line. Reports exactly what it found and what it had to assume.
+function parseText(text, weekStart) {
   const items = [];
-  for (const original of lines) {
-    let line = original.replace(/^[-*•\d.)\s]+/, '').trim();
-    if (!line) continue;
+  const lines = String(text || '').split(/\r?\n/).map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim()).filter(Boolean);
+  for (const raw of lines) {
+    let rest = raw;
+    const links = rest.match(URL_RE) || [];
+    rest = rest.replace(URL_RE, ' ');
     const flags = [], fromSource = [];
-    const urls = line.match(URL_RE) || [];
-    const resourceLink = urls[0] || null;
-    for (const u of urls) line = line.replace(u, ' ');
-    line = line.replace(/\s+/g, ' ').trim();
-
+    const dur = parseDuration(rest); if (dur) { rest = rest.replace(dur.text, ' '); fromSource.push('est_minutes'); }
+    const time = parseTime(rest); if (time) rest = rest.replace(time.text, ' ');
+    let wd = null;
+    for (const [n, re] of WEEKDAYS) { const m = rest.match(re); if (m) { wd = n; rest = rest.replace(m[0], ' '); break; } }
+    let dateStr = null;
+    const dm = rest.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+    if (dm && T.isDate(dm[0])) { dateStr = dm[0]; rest = rest.replace(dm[0], ' '); }
+    rest = rest.replace(/\b(due|deadline|by|hạn|nộp)\b[:\s]*/gi, ' ').replace(/[()|]/g, ' ').replace(/\s{2,}/g, ' ').replace(/^[\s:,\-–—]+|[\s:,\-–—]+$/g, '').trim();
+    const title = rest || raw.slice(0, 80);
     let subject = 'Other';
-    for (const [s, re] of SUBJECTS) { if (re.test(line)) { subject = s; break; } }
-
-    const dur = parseDuration(line);
-    let estMinutes = null;
-    if (dur) { estMinutes = dur.minutes; fromSource.push('est_minutes'); line = line.replace(dur.text, ' '); }
-
-    const tm = parseTime(line);
-    const timeStr = tm ? tm.time : null;
-    if (tm) line = line.replace(tm.text, ' ');
-
-    const dl = parseDeadline(line, weekStart);
+    for (const [name, re] of SUBJECTS) if (re.test(raw)) { subject = name; break; }
     let deadline = null;
-    if (dl) {
+    if (dateStr) { deadline = `${dateStr}T${time ? `${String(time.h).padStart(2, '0')}:${String(time.mi).padStart(2, '0')}` : '23:59'}`; fromSource.push('deadline'); if (!time) flags.push('No deadline time was written; end of day (23:59) was assumed.'); }
+    else if (wd) {
+      deadline = `${T.addDays(weekStart, wd - 1)}T${time ? `${String(time.h).padStart(2, '0')}:${String(time.mi).padStart(2, '0')}` : '23:59'}`;
       fromSource.push('deadline');
-      deadline = `${dl.date}T${timeStr || '23:59'}`;
-      if (dl.fromWeekday) flags.push(`Deadline date worked out from the weekday (${dl.text}) and the selected week.`);
-      if (!timeStr) flags.push('No deadline time given; end of day (23:59) was assumed.');
-      line = line.replace(dl.text, ' ');
-    } else flags.push('No deadline was found in this line.');
-
-    const title = line.replace(/\b(due|by|hạn|nop|trước|nop lúc|nop truoc)\b/gi, ' ').replace(/[\s\-_,:;()]+$/, '').replace(/^[\s\-_,:;()]+/, '').replace(/\s+/g, ' ').trim() || original.slice(0, 100);
-    const taskType = guessType(title, subject);
-    if (!estMinutes) flags.push('No duration in the line; a system estimate will be used (please confirm).');
-
-    items.push({
-      title, subject, task_type: taskType, instructions: null,
-      est_minutes: estMinutes, est_source: estMinutes ? 'source' : 'system',
-      deadline, target: null, priority: 2, review_required: 0,
-      resource_link: resourceLink, work_link: null, flags, from_source: fromSource,
-      applies_to: null,
-    });
+      flags.push(`Deadline date worked out from the weekday and the selected week (${T.DOW[wd]} ${T.addDays(weekStart, wd - 1)}).`);
+      if (!time) flags.push('No deadline time was written; end of day (23:59) was assumed.');
+    } else flags.push('No deadline found in the text.');
+    if (!dur) flags.push('No duration written; a system estimate will be used (please confirm).');
+    if (title.length < 3) flags.push('The title is very short or unclear; please check it.');
+    const type = guessType(title, subject);
+    items.push({ title, subject, task_type: type, instructions: null, est_minutes: dur ? dur.minutes : null, est_source: dur ? 'source' : 'system',
+      deadline, target: null, priority: 2, review_required: 0, resource_link: links[0] || null, work_link: null,
+      flags, from_source: fromSource, source_text: raw, extra_links: links.slice(1) });
   }
   return items;
 }
 
-// ---------- main entry ----------
-// Returns { status, items[], notes[] }. Each item is for exactly one child; "both" creates one item per child.
-async function extract({ childIds, weekStart, text, fileRows = [], driveLinks = [] }) {
-  const notes = [];
-  let items = [];
-  if (text && text.trim()) {
-    items = parseText(text, weekStart);
-  } else if (fileRows.length > 0) {
-    notes.push('Uploaded file(s) attached as reference material. Please enter task details below.');
-  }
-  if (!items.length) notes.push('No tasks were found in the text. Add them manually below.');
-  const sourceFileId = fileRows.length === 1 ? fileRows[0].id : null;
+// ---------- AI extraction (images / PDFs / complicated text) ----------
+const AI_PROMPT = (weekStart, names) => `You read school homework assignments for parents. The attached material (images, PDFs and/or text) lists weekly work for ${names.join(' and ')}.
+Extract each separate assignment. Respond with ONLY a JSON object, no commentary, in exactly this shape:
+{"tasks":[{"title":string,"subject":string|null,"instructions":string|null,"deadline_date":"YYYY-MM-DD"|null,"deadline_weekday":1-7|null,"deadline_time":"HH:MM"|null,"estimated_minutes":number|null,"links":[string],"applies_to":"ben"|"shin"|"both"|null,"unclear":[string]}],"unreadable":[string]}
+Rules: copy only what is written. Use null when something is not stated - never guess. "estimated_minutes" only if a duration is explicitly written.
+Use "deadline_date" only for a full date in the source; if only a weekday is written use "deadline_weekday" (1=Monday..7=Sunday). The intended week starts on Monday ${weekStart}.
+List in "unclear" any field you could not read confidently, and in "unreadable" any parts of the material you could not read.`;
 
+async function callClaude(content) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: EXTRACTION_MODEL(), max_tokens: 4096, messages: [{ role: 'user', content }] }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`The extraction service answered with an error (${res.status}): ${(body.error && body.error.message) || 'unknown'}`);
+  return (body.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+}
+
+function parseAIJson(text, key = 'tasks') {
+  const cleaned = String(text).replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  const start = cleaned.indexOf('{'), end = cleaned.lastIndexOf('}');
+  if (start < 0 || end < 0) throw new Error('The extraction service did not return readable data.');
+  const obj = JSON.parse(cleaned.slice(start, end + 1));
+  if (!obj || !Array.isArray(obj[key])) throw new Error('The extraction service returned data in an unexpected shape.');
+  return obj;
+}
+
+function aiToItems(obj, weekStart) {
+  const items = [];
+  for (const r of obj.tasks.slice(0, 100)) {
+    const title = typeof r.title === 'string' ? r.title.trim().slice(0, 200) : '';
+    if (!title) continue;
+    const flags = [], fromSource = [];
+    let deadline = null;
+    const time = typeof r.deadline_time === 'string' && T.isTime(r.deadline_time) ? r.deadline_time : null;
+    if (typeof r.deadline_date === 'string' && T.isDate(r.deadline_date)) { deadline = `${r.deadline_date}T${time || '23:59'}`; fromSource.push('deadline'); }
+    else if (Number.isInteger(r.deadline_weekday) && r.deadline_weekday >= 1 && r.deadline_weekday <= 7) {
+      deadline = `${T.addDays(weekStart, r.deadline_weekday - 1)}T${time || '23:59'}`; fromSource.push('deadline');
+      flags.push(`Deadline date worked out from the weekday and the selected week.`);
+    } else flags.push('No deadline was found in the source.');
+    if (deadline && !time) flags.push('No deadline time in the source; end of day (23:59) was assumed.');
+    const minutes = Number.isFinite(r.estimated_minutes) && r.estimated_minutes >= 5 && r.estimated_minutes <= 900 ? Math.round(r.estimated_minutes) : null;
+    if (minutes) fromSource.push('est_minutes'); else flags.push('No duration in the source; a system estimate will be used (please confirm).');
+    for (const u of Array.isArray(r.unclear) ? r.unclear.slice(0, 5) : []) if (typeof u === 'string') flags.push(`Unclear in the source: ${u.slice(0, 200)}`);
+    const links = (Array.isArray(r.links) ? r.links : []).filter((l) => typeof l === 'string' && /^https?:\/\//i.test(l));
+    const subject = typeof r.subject === 'string' && r.subject.trim() ? r.subject.trim().slice(0, 60) : 'Other';
+    items.push({ title, subject, task_type: guessType(title, subject), instructions: typeof r.instructions === 'string' ? r.instructions.slice(0, 4000) : null,
+      est_minutes: minutes, est_source: minutes ? 'source' : 'system', deadline, target: null, priority: 2, review_required: 0,
+      resource_link: links[0] || null, work_link: null, flags, from_source: fromSource, applies_to: ['ben', 'shin', 'both'].includes(r.applies_to) ? r.applies_to : null, extra_links: links.slice(1) });
+  }
+  return { items, unreadable: (Array.isArray(obj.unreadable) ? obj.unreadable : []).filter((x) => typeof x === 'string').slice(0, 10) };
+}
+
+async function extractWithAI({ text, files, childNames, weekStart, call = callClaude }) {
+  const content = [];
+  for (const f of files) {
+    const data = readFile(f).toString('base64');
+    content.push(f.mime === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }
+      : { type: 'image', source: { type: 'base64', media_type: f.mime, data } });
+  }
+  if (text && text.trim()) content.push({ type: 'text', text: `Pasted text:\n${text.slice(0, 20000)}` });
+  content.push({ type: 'text', text: AI_PROMPT(weekStart, childNames) });
+  return aiToItems(parseAIJson(await call(content)), weekStart);
+}
+
+// ---------- main entry ----------
+// Returns { status, items[], notes[] }.  Each item is for exactly one child; "both" creates one item per child.
+async function extract({ childIds, weekStart, text, fileRows, driveLinks = [], call }) {
+  const notes = [];
+  let items = [], unreadable = [];
+  const names = childIds.map((id) => get('SELECT name FROM children WHERE id = ?', id).name);
+  const hasFiles = fileRows.length > 0;
+  let ai = 'not_used';
+  if (hasFiles) {
+    if (!aiConfigured() && !call) {
+      return { status: 'not_connected', items: [], notes: ['Reading images and PDFs needs the extraction service, which is not connected yet (ANTHROPIC_API_KEY is missing). Nothing was extracted from the files. You can paste the text or add tasks manually instead.'] };
+    }
+    try { const r = await extractWithAI({ text, files: fileRows, childNames: names, weekStart, call }); items = r.items; unreadable = r.unreadable; ai = 'ok'; }
+    catch (e) { return { status: 'failed', items: [], notes: [`The files could not be read: ${e.message} You can paste the text or add tasks manually instead.`] }; }
+  } else if (text && text.trim()) {
+    items = parseText(text, weekStart);
+  }
+  if (unreadable.length) notes.push(...unreadable.map((u) => `Could not read: ${u}`));
+  if (!items.length) notes.push('No tasks were found. Add them manually below.');
+  const sourceFileId = fileRows.length === 1 ? fileRows[0].id : null;
   // Fan out to children; attach Drive links given for the whole import when an item has no link of its own.
   const out = [];
   for (const it of items) {
@@ -149,7 +188,7 @@ async function extract({ childIds, weekStart, text, fileRows = [], driveLinks = 
   }
   flagDuplicates(out, weekStart);
   if (driveLinks.length > 1) notes.push('Several Drive links were pasted: they are not matched to tasks automatically. Paste each link into the right task below.');
-  return { status: 'ok', items: out, notes, source_file_id: sourceFileId };
+  return { status: 'ok', ai, items: out, notes, source_file_id: sourceFileId };
 }
 
 // Marks items that look like something already saved for that child, or like another item in the same batch.
@@ -157,7 +196,7 @@ function flagDuplicates(items, weekStart) {
   items.forEach((it, i) => {
     const existing = all("SELECT id, title, deadline FROM tasks WHERE child_id = ? AND cancelled_at IS NULL AND (week_start = ? OR reporting_month = ?)", it.child_id, weekStart, T.monthOf(it.deadline || weekStart));
     for (const e of existing) {
-      if (similarity(e.title, it.title) >= 0.8 && (!it.deadline || !e.deadline || e.deadline.slice(0, 10) === e.deadline.slice(0, 10))) { it.duplicate_of = e.id; it.flags.push(`Possible duplicate of the saved task "${e.title}".`); break; }
+      if (similarity(e.title, it.title) >= 0.8 && (!it.deadline || !e.deadline || e.deadline.slice(0, 10) === it.deadline.slice(0, 10))) { it.duplicate_of = e.id; it.flags.push(`Possible duplicate of the saved task "${e.title}".`); break; }
     }
     for (let j = 0; j < i; j++) {
       if (items[j].child_id === it.child_id && similarity(items[j].title, it.title) >= 0.9) { it.flags.push(`Looks the same as item ${j + 1} in this list.`); it.duplicate_in_batch = j; break; }
@@ -190,5 +229,25 @@ function templateItems(weekStart, childIds) {
   flagDuplicates(items, weekStart);
   return items;
 }
-
-module.exports = { extract, parseText, templateItems, flagDuplicates, similarity };
+// ---------- timetable image / PDF -> editable table ----------
+const TT_PROMPT = `This is a weekly school or activity timetable for children. Extract every block. Respond with ONLY JSON:
+{"blocks":[{"child":string|null,"title":string,"weekday":1-7,"start":"HH:MM","end":"HH:MM","mode":"online"|"offline"|null,"unclear":[string]}],"unreadable":[string]}
+weekday: 1=Monday..7=Sunday. Use null where something is not shown - never guess. Put anything hard to read in "unclear".`;
+async function extractTimetable({ fileRows, call = callClaude }) {
+  if (!aiConfigured() && call === callClaude) return { status: 'not_connected', blocks: [], notes: ['Reading timetable images needs the extraction service (ANTHROPIC_API_KEY), which is not connected. Please add the timetable items by hand.'] };
+  try {
+    const content = fileRows.map((f) => { const data = readFile(f).toString('base64'); return f.mime === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: f.mime, data } } : { type: 'image', source: { type: 'base64', media_type: f.mime, data } }; });
+    content.push({ type: 'text', text: TT_PROMPT });
+    const obj = parseAIJson(await call(content), 'blocks');
+    const blocks = [];
+    for (const r of obj.blocks.slice(0, 100)) {
+      const flags = Array.isArray(r.unclear) ? r.unclear.map((u) => `Unclear: ${u}`) : [];
+      const ok = typeof r.title === 'string' && Number.isInteger(r.weekday) && r.weekday >= 1 && r.weekday <= 7 && T.isTime(r.start) && T.isTime(r.end);
+      if (!ok) { flags.push('Some details could not be read; please complete this row.'); }
+      blocks.push({ child_id: ['ben', 'shin'].includes(String(r.child || '').toLowerCase()) ? String(r.child).toLowerCase() : null, title: String(r.title || '').slice(0, 100), weekday: r.weekday || 1,
+        start_time: T.isTime(r.start) ? r.start : '', end_time: T.isTime(r.end) ? r.end : '', mode: ['online', 'offline'].includes(r.mode) ? r.mode : null, kind: 'class', flags });
+    }
+    return { status: 'ok', blocks, notes: ['Check every row before saving. Nothing has been saved yet.'] };
+  } catch (e) { return { status: 'failed', blocks: [], notes: [`The timetable could not be read: ${e.message}`] }; }
+}
+module.exports = { extract, parseText, parseAIJson, aiToItems, extractWithAI, templateItems, flagDuplicates, similarity, aiConfigured, EXTRACTION_MODEL, extractTimetable };

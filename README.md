@@ -10,7 +10,8 @@
 | `web-app/src/` | `js1.js` (tiện ích, ngày giờ, state, điểm thưởng) · `js2.js` (giao diện chung, form việc, đính kèm file, theme theo người dùng, màn hình chào, hình động hai bên) · `js3.js` (Hôm nay, Tháng, Hiệu suất, Tài liệu, Học sinh) · `js4.js` (Phần thưởng, nhập Excel/CSV, xếp lịch, phiếu in) · `js5.js` (nhắc việc, khởi động) · `style.css` |
 | `web-app/i18n/vi.json` | Bản dịch tiếng Việt (key = câu tiếng Anh trong `t('…')`). |
 | `web-app/build.py` | Gộp `src/` + `i18n/` thành một file `dist/index.html`. Chạy: `python3 build.py`. |
-| `web-app/dist/index.html` | Bản build, giống bản đang chạy trên claude.ai. Mở trực tiếp bằng trình duyệt cũng chạy. |
+| `web-app/dist/index.html` | Bản build, giống hệt bản đang chạy trên claude.ai (đã đối chiếu ngày 4/11/2026). Mở trực tiếp bằng trình duyệt là chạy, có dữ liệu mẫu ở `samples/` để import thử. |
+| `web-app/docs/screenshots/` | Ảnh chụp giao diện từng màn hình: màn hình chào của Mẹ / Ben / Shin, Hôm nay, Nhập file, Thêm việc, Tháng, Phiếu in, Phần thưởng, điện thoại. |
 | `web-app/docs/DATA_MODEL.md` | Cấu trúc dữ liệu, nơi lưu, luật xếp lịch, tính điểm, nhập Excel. |
 | `web-app/samples/` | File Excel/CSV mẫu (định dạng mới và định dạng có cột lặp lại), file PDF mẫu. |
 | `web-app/tests/smoke.test.js` | Kiểm thử nhanh bằng Playwright (`npm i -D playwright && npx playwright install chromium && node tests/smoke.test.js`). |

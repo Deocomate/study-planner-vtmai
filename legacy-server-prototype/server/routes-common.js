@@ -84,7 +84,7 @@ function register(app) {
     if (!req.user) return res.json({ user: null, needs_setup: !get('SELECT 1 AS x FROM users LIMIT 1') });
     const children = all('SELECT * FROM children').filter((c) => req.user.role === 'parent' || c.id === req.user.child_id);
     res.json({ user: req.user, csrf: req.csrf, children, today: T.todayStr(), now_minutes: T.nowMinutes(),
-      config: { email: mailer.status(), timezone: T.TZ, demo_loaded: !!get('SELECT 1 AS x FROM tasks WHERE is_demo = 1 LIMIT 1') } });
+      config: { email: mailer.status(), extraction_connected: importer.aiConfigured(), timezone: T.TZ, demo_loaded: !!get('SELECT 1 AS x FROM tasks WHERE is_demo = 1 LIMIT 1') } });
   });
   app.post('/api/me/password', async (req, res) => {
     A.requireLogin(req);

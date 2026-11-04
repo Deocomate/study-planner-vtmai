@@ -56,17 +56,53 @@ test('possible duplicates are flagged and must be confirmed explicitly', async (
   assert.equal(forced.body.created, 1);
 });
 
-test('uploaded files (images/PDFs) are attached as reference material without external AI', async () => {
+test('images and PDFs are never "read" when no extraction service is connected', async () => {
   for (const [name, buf] of [['shot.png', png], ['sheet.pdf', pdf]]) {
     const up = await fam.parent.req('POST', `/api/files?kind=import&name=${name}`, undefined, { raw: buf });
     assert.equal(up.status, 200);
     const r = await extract({ file_ids: [up.body.file.id] });
-    assert.equal(r.body.status, 'ok', name);
-    assert.equal(r.body.source_file_id, up.body.file.id);
-    assert.ok(r.body.notes.some((n) => /attached/i.test(n)));
+    assert.equal(r.body.status, 'not_connected', name); assert.equal(r.body.items.length, 0);
+    assert.match(r.body.notes[0], /not connected/);
   }
   const st = await fam.parent.get('/api/parent/import/status');
-  assert.equal(st.body.text_parser, true);
+  assert.equal(st.body.extraction_connected, false);
+});
+
+test('import accepts only PDF/PNG/JPG/WEBP files; fake files are rejected', async () => {
+  assert.equal((await fam.parent.req('POST', '/api/files?kind=import&name=a.txt', undefined, { raw: Buffer.from('hello') })).status, 400);
+  assert.equal((await fam.parent.req('POST', '/api/files?kind=import&name=a.pdf', undefined, { raw: Buffer.from('not really a pdf') })).status, 400);
+  assert.equal((await fam.parent.req('POST', '/api/files?kind=import&name=a.docx', undefined, { raw: Buffer.from([0x50, 0x4b, 3, 4, 0, 0]) })).status, 400, 'office files are for submissions, not for import');
+});
+
+test('with an extraction service, screenshots/PDFs give an editable preview (model call mocked)', async () => {
+  const f = files.saveUpload({ buf: png, name: 'shot.png', kind: 'import', userId: null });
+  const row = dbm.get('SELECT * FROM files WHERE id = ?', f.id);
+  let sent;
+  const call = async (content) => { sent = content; return '```json\n' + JSON.stringify({ tasks: [
+    { title: 'Science workbook pages 10-12', subject: 'Science', deadline_weekday: 4, deadline_time: '07:00', estimated_minutes: null, links: ['https://drive.google.com/x'], applies_to: null, unclear: ['page numbers'] },
+    { title: 'Debate speech', subject: 'Debate', deadline_date: '2026-10-30', deadline_time: null, estimated_minutes: 60, links: [], applies_to: 'shin', unclear: [] },
+    { title: '', subject: null }] , unreadable: ['bottom right corner'] }) + '\n```'; };
+  const r = await importer.extract({ childIds: ['ben', 'shin'], weekStart: '2026-10-26', text: '', fileRows: [row], call });
+  assert.equal(r.status, 'ok');
+  assert.equal(sent[0].type, 'image'); assert.equal(sent[0].source.media_type, 'image/png');
+  assert.equal(r.items.length, 3, 'untitled item dropped; item 1 for both children; item 2 only for shin');
+  const sci = r.items.filter((i) => i.title.startsWith('Science'));
+  assert.deepEqual(sci.map((i) => i.child_id), ['ben', 'shin']);
+  assert.equal(sci[0].deadline, '2026-10-29T07:00'); assert.ok(sci[0].flags.some((x) => /page numbers/.test(x)));
+  assert.equal(sci[0].est_source, 'system', 'no duration in the source => system suggestion'); assert.equal(sci[0].est_minutes, 45);
+  const deb = r.items.find((i) => i.title === 'Debate speech');
+  assert.equal(deb.child_id, 'shin'); assert.equal(deb.est_source, 'source'); assert.ok(deb.flags.some((x) => /end of day/.test(x)));
+  assert.ok(r.notes.some((n) => /bottom right corner/.test(n)));
+  assert.equal(r.source_file_id, f.id, 'the source file stays attached to the tasks');
+});
+
+test('a failing or nonsensical extraction service never produces fake tasks', async () => {
+  const f = files.saveUpload({ buf: pdf, name: 'x.pdf', kind: 'import', userId: null });
+  const row = dbm.get('SELECT * FROM files WHERE id = ?', f.id);
+  const bad = await importer.extract({ childIds: ['ben'], weekStart: '2026-10-26', text: '', fileRows: [row], call: async () => 'Sorry, I cannot help with that.' });
+  assert.equal(bad.status, 'failed'); assert.equal(bad.items.length, 0);
+  const err = await importer.extract({ childIds: ['ben'], weekStart: '2026-10-26', text: '', fileRows: [row], call: async () => { throw new Error('The extraction service answered with an error (401): invalid key'); } });
+  assert.equal(err.status, 'failed'); assert.match(err.notes[0], /invalid key/);
 });
 
 test('a source file stays attached to its tasks; children can open it only for their own tasks', async () => {

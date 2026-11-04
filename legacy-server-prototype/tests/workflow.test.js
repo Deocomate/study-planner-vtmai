@@ -215,9 +215,9 @@ test('data persists: a second process opening the same database file sees the sa
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fp-persist-'));
   const script = `
     process.env.NODE_ENV='test'; process.env.DATA_DIR=${JSON.stringify(dir)}; delete process.env.DB_PATH;
-    const T=require(${JSON.stringify(path.join(__dirname, '../server/time'))}); T.setClock(()=>Date.UTC(2026,9,28,8,42));
-    const d=require(${JSON.stringify(path.join(__dirname, '../server/db'))}); require(${JSON.stringify(path.join(__dirname, '../server/seed'))}).seedBase();
-    const K=require(${JSON.stringify(path.join(__dirname, '../server/tasks'))});
+    const T=require('${path.join(__dirname, '../server/time')}'); T.setClock(()=>Date.UTC(2026,9,28,8,42));
+    const d=require('${path.join(__dirname, '../server/db')}'); require('${path.join(__dirname, '../server/seed')}').seedBase();
+    const K=require('${path.join(__dirname, '../server/tasks')}');
     const mode=process.argv[1];
     if(mode==='write'){ K.createTasks({items:[{title:'Persisted task',est_minutes:30}],childIds:['ben'],weekStart:'2026-10-26'}); }
     else { console.log(JSON.stringify(d.all('SELECT title, est_minutes FROM tasks'))); }`;

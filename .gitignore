@@ -26,3 +26,8 @@ npm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Client handover archive
+study-planer-source-code.zip
+study-planer-source-code/
+

@@ -61,13 +61,13 @@ Volume này đảm bảo cơ sở dữ liệu SQLite (`/data/planner.db`) và c�
 
 ---
 
-## 3. Thiết Lập Ứng Dụng Lần Đầu
+## 3. Trải Nghiệm Ứng Dụng Sau Khi Deploy
 
 1. Mở trình duyệt và truy cập: `https://study.yourdomain.com`.
-2. Hệ thống sẽ hiển thị màn hình cài đặt lần đầu (**First-time Setup**):
-   - Nhập **Setup Code** (chính là chuỗi bạn đã đặt trong biến môi trường `SETUP_CODE`).
-   - Đặt mật khẩu cho tài khoản Phụ huynh (**Parent**).
-   - Đặt mã PIN đăng nhập cho **Ben** và **Shin**.
-   - (Tuỳ chọn) Chọn tick vào ô "demo tasks" nếu muốn tải sẵn một số bài tập mẫu để làm quen.
-3. Sau khi hoàn tất, bạn có thể đăng nhập với vai trò Phụ huynh để xếp lịch, nhập bài tập từ Excel hoặc phân chia nhiệm vụ cho các con.
-4. Để mở phiên bản web-app vanilla JS tĩnh, bạn có thể truy cập trực tiếp đường dẫn: `https://study.yourdomain.com/web-app.html`.
+2. Hệ thống sẽ hiển thị giao diện **chính thức bản gốc của khách hàng** (`web-app`):
+   - Màn hình chào (**Splash screen**) tương tác sinh động với sticker hoạt hình tự vẽ và thông báo việc cần làm trong ngày cho Mẹ / Ben / Shin.
+   - Giao diện đổi theme tự động theo vai trò người dùng (Ben màu đỏ, Shin màu xanh, Mẹ màu nâu).
+   - Trang **Hôm nay**: phân chia rõ ràng Việc của mẹ, Bài quá hạn, Hạn hôm nay, Luyện tập hằng ngày; cột bên phải hiển thị Lịch học thêm và Hạn nộp trong tuần.
+   - Đầy đủ tính năng: Nhập file Excel/CSV xem trước (`Import`), Thêm việc (`Add task`), Xem lịch tháng (`Month`), Phiếu in bài tập (`Print sheet`), Phần thưởng & tích điểm iPad (`Rewards`), và giao diện tối ưu trên điện thoại.
+   - Hình ảnh giao diện thực tế đối chiếu chuẩn xác với 10 ảnh mẫu trong thư mục `web-app/docs/screenshots/`.
+3. Nếu cần truy cập lại bản thử nghiệm backend cũ (legacy server prototype) để thiết lập tài khoản phụ huynh hoặc xem REST API, bạn có thể truy cập: `https://study.yourdomain.com/legacy.html`.

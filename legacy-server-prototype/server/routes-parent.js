@@ -111,8 +111,9 @@ function register(app) {
     res.json({ help: K.replyHelp(req.params.id, b.reply) });
   });
 
-  // ---------- import (text, uploaded files, Drive links) ----------
-  g('get', '/api/parent/import/status', async (req, res) => res.json({ text_parser: true }));
+  // ---------- import (text, screenshots, PDFs, Drive links) ----------
+  g('get', '/api/parent/import/status', async (req, res) => res.json({ extraction_connected: importer.aiConfigured(), model: importer.EXTRACTION_MODEL(),
+    text_parser: true, note: importer.aiConfigured() ? null : 'Reading images and PDFs is not connected (ANTHROPIC_API_KEY missing). Pasted text and manual entry still work.' }));
   g('post', '/api/parent/import/extract', async (req, res) => {
     const b = await readJson(req, 100 * 1024);
     const childIds = childIdsFrom(b.child_ids);
@@ -245,7 +246,10 @@ function register(app) {
     res.json({ ok: true });
   });
   g('post', '/api/parent/timetable/extract', async (req, res) => {
-    res.json({ status: 'ok', blocks: [], notes: ['Timetable picture extraction is disabled. Please add timetable items manually.'] });
+    const b = await readJson(req);
+    const rows = (Array.isArray(b.file_ids) ? b.file_ids : []).slice(0, 4).map((id) => get("SELECT * FROM files WHERE id = ? AND kind = 'import'", id)).filter(Boolean);
+    if (!rows.length) throw bad('Upload a timetable image or PDF first.');
+    res.json(await importer.extractTimetable({ fileRows: rows }));
   });
 
   // ---------- settings, reminders, accounts ----------

@@ -8,8 +8,23 @@ COPY legacy-server-prototype/migrations ./migrations
 COPY legacy-server-prototype/server ./server
 COPY legacy-server-prototype/public ./public
 
-# Include the compiled standalone web-app artifact inside public
+# Archive legacy prototype at /legacy.html
+RUN mv ./public/index.html ./public/legacy.html
+
+# Serve the true client app (web-app) as the main root index.html
+COPY web-app/dist/index.html ./public/index.html
 COPY web-app/dist/index.html ./public/web-app.html
+
+# Copy sample files so users can download or test import
+COPY web-app/samples ./public/samples
+
+# Copy screenshots for reference
+COPY web-app/docs/screenshots ./public/screenshots
+
+# Ensure Content-Security-Policy allows web-app's inline scripts and fonts
+RUN sed -i "s/script-src 'self'/script-src 'self' 'unsafe-inline'/g" ./server/app.js && \
+    sed -i "s/style-src 'self' 'unsafe-inline'/style-src 'self' 'unsafe-inline' https:\/\/fonts.googleapis.com/g" ./server/app.js && \
+    sed -i "s/default-src 'self'/default-src 'self' data: blob: https:\/\/fonts.googleapis.com https:\/\/fonts.gstatic.com/g" ./server/app.js
 
 # Ensure data directory exists
 RUN mkdir -p /data/uploads

@@ -121,7 +121,6 @@ async function renderSetup() {
   const st = await get('/api/setup/status');
   const f = { pp: h('input', { type: 'password', autocomplete: 'new-password' }), em: h('input', { type: 'email', placeholder: 'you@example.com' }), bp: h('input', { type: 'password', autocomplete: 'off' }), sp: h('input', { type: 'password', autocomplete: 'off' }), code: h('input', { type: 'password' }), demo: h('input', { type: 'checkbox', checked: true }) };
   const err = h('p', { class: 'warn-line', role: 'alert' });
-  const submitBtn = h('button', { class: 'btn primary big', type: 'submit' }, 'Create my family');
   const form = h('form', { class: 'stack' },
     h('p', null, 'Welcome! This one-time step creates the three sign-ins for your family. Nothing is shared with anyone.'),
     field('Your password (at least 8 characters)', f.pp), field('Your email address (for reminders and summaries)', f.em, 'Optional now, you can add it later in Settings.'),
@@ -129,26 +128,14 @@ async function renderSetup() {
     st.needs_code ? field('Setup code', f.code, 'The SETUP_CODE you set on the server.') : null,
     st.production_without_code ? h('p', { class: 'warn-line' }, 'This server is public but has no SETUP_CODE. Set one in the server settings first (see the setup guide).') : null,
     h('label', { class: 'check' }, f.demo, 'Add demo tasks for this week so I can try everything (you can remove them in one click)'), err,
-    submitBtn);
+    h('button', { class: 'btn primary big', type: 'submit' }, 'Create my family'));
   form.addEventListener('submit', async (e) => {
     e.preventDefault(); err.textContent = '';
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Creating family…';
     try {
       const r = await api('POST', '/api/setup', { parent_password: f.pp.value, parent_email: f.em.value, ben_password: f.bp.value, shin_password: f.sp.value, setup_code: f.code.value, load_demo: f.demo.checked }, { quiet401: true });
       state.csrf = r.csrf; const me = await get('/api/me'); Object.assign(state, { user: me.user, csrf: me.csrf, children: me.children, config: me.config, today: me.today, needsSetup: false });
       go('/parent/overview'); route();
-    } catch (ex) {
-      if (ex.status === 409) {
-        state.needsSetup = false;
-        location.hash = '#/login';
-        route();
-        return;
-      }
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Create my family';
-      err.textContent = ex.message;
-    }
+    } catch (ex) { err.textContent = ex.message; }
   });
   mount(app, h('main', { id: 'main', class: 'login-wrap' }, h('div', { class: 'card' }, h('h1', null, '📚 Set up your Study Planner'), form)));
 }

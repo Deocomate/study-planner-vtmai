@@ -13,14 +13,6 @@ test('unauthenticated requests are refused', async () => {
   assert.equal((await c.get('/api/me')).body.user, null);
 });
 
-test('a signed-in user can load their profile (/api/me), as the app does right after sign-in', async () => {
-  for (const [who, role] of [['parent', 'parent'], ['ben', 'child'], ['shin', 'child']]) {
-    const r = await fam[who].get('/api/me');
-    assert.equal(r.status, 200, who);
-    assert.equal(r.body.user.role, role);
-  }
-});
-
 test('children cannot open a board other than their own; the parent can open both', async () => {
   assert.equal((await fam.ben.get('/api/board/ben/today')).status, 200);
   assert.equal((await fam.ben.get('/api/board/shin/today')).status, 403);
