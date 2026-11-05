@@ -155,7 +155,7 @@ footer { border-top: 1px solid var(--line); padding: 14px 16px calc(14px + env(s
 .pk-select[aria-expanded="true"] svg { transform: rotate(180deg); color: var(--brand-t); } .pk:disabled { opacity: .55; cursor: not-allowed; }
 .pk:focus-visible { outline: none; border-color: var(--pine); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pine) 40%, transparent); }
 .pk-pop { position: fixed; z-index: 140; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink);
-  box-shadow: 0 14px 36px rgb(20 10 30 / .2), 0 2px 8px rgb(20 10 30 / .08); animation: pk-in .14s ease-out; max-width: calc(100vw - 16px); }
+  box-shadow: 0 14px 36px rgb(20 10 30 / .2), 0 2px 8px rgb(20 10 30 / .08); animation: pk-in .14s ease-out; max-width: calc(100vw - 16px); overflow-y: auto; overscroll-behavior: contain; }
 @keyframes pk-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
 @media (prefers-reduced-motion: reduce) { .pk-pop { animation: none; } .pk svg { transition: none; } }
 .pk-list { max-height: min(300px, 60vh); overflow-y: auto; outline: none; display: flex; flex-direction: column; gap: 1px; scrollbar-width: thin; }

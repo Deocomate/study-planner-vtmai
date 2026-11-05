@@ -164,7 +164,7 @@ footer { border-top: 1px solid var(--line); padding: 14px 16px calc(14px + env(s
 .pk-select[aria-expanded="true"] svg { transform: rotate(180deg); color: var(--brand-t); } .pk:disabled { opacity: .55; cursor: not-allowed; }
 .pk:focus-visible { outline: none; border-color: var(--pine); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pine) 40%, transparent); }
 .pk-pop { position: fixed; z-index: 140; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink);
-  box-shadow: 0 14px 36px rgb(20 10 30 / .2), 0 2px 8px rgb(20 10 30 / .08); animation: pk-in .14s ease-out; max-width: calc(100vw - 16px); }
+  box-shadow: 0 14px 36px rgb(20 10 30 / .2), 0 2px 8px rgb(20 10 30 / .08); animation: pk-in .14s ease-out; max-width: calc(100vw - 16px); overflow-y: auto; overscroll-behavior: contain; }
 @keyframes pk-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
 @media (prefers-reduced-motion: reduce) { .pk-pop { animation: none; } .pk svg { transition: none; } }
 .pk-list { max-height: min(300px, 60vh); overflow-y: auto; outline: none; display: flex; flex-direction: column; gap: 1px; scrollbar-width: thin; }
@@ -532,14 +532,16 @@ body { background-size: 560px 560px; }
     next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>' };
   const POP = { anchor: null, close: null };
   const closePop = () => { if (POP.close) POP.close(); };
-  const openPop = (anchor, content, cls) => {
+  /* fill() draws the content once the panel is in the page, so it is measured at its real size before placing */
+  const openPop = (anchor, content, cls, fill) => {
     closePop();
-    const pop = h('div', { class: `pk-pop ${cls}` }, content); document.body.append(pop);
+    const pop = h('div', { class: `pk-pop ${cls}` }, content); document.body.append(pop); if (fill) fill();
     const place = () => { const r = anchor.getBoundingClientRect(), vw = innerWidth, vh = innerHeight;
       if (cls === 'pk-pop-list') pop.style.minWidth = `${Math.min(r.width, vw - 16)}px`;
-      const w = pop.offsetWidth, ph = pop.offsetHeight; let top = r.bottom + 6;
-      if (top + ph > vh - 8) top = r.top - ph - 6 >= 8 ? r.top - ph - 6 : Math.max(8, vh - ph - 8);
-      pop.style.left = `${Math.max(8, Math.min(r.left, vw - w - 8))}px`; pop.style.top = `${top}px`; };
+      const below = vh - r.bottom - 14, above = r.top - 14; const up = pop.scrollHeight > below && above > below;
+      pop.style.maxHeight = `${Math.max(120, up ? above : below)}px`;
+      const w = pop.offsetWidth, ph = pop.offsetHeight;
+      pop.style.left = `${Math.max(8, Math.min(r.left, vw - w - 8))}px`; pop.style.top = `${up ? r.top - ph - 6 : r.bottom + 6}px`; };
     const onDown = (e) => { if (!pop.contains(e.target) && !anchor.contains(e.target)) closePop(); };
     const onScroll = (e) => { if (!pop.contains(e.target)) closePop(); };
     document.addEventListener('pointerdown', onDown, true); document.addEventListener('scroll', onScroll, true); addEventListener('resize', closePop);
@@ -586,7 +588,7 @@ body { background-size: 560px 560px; }
       if (k || e.key === 'PageUp' || e.key === 'PageDown') { if (!e.target.dataset.d) return; e.preventDefault();
         if (k) cur = addDays(cur, k); else { const [y, m] = cur.split('-').map(Number); const d = new Date(y, m - 1 + (e.key === 'PageUp' ? -1 : 1), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); cur = ymd(new Date(d.getFullYear(), d.getMonth(), Math.min(Number(cur.slice(8)), last))); }
         view = cur.slice(0, 7); draw(); } });
-    openPop(btn, box, 'pk-pop-cal'); draw();
+    openPop(btn, box, 'pk-pop-cal', () => draw(false)); box.querySelector(`[data-d="${cur}"]`)?.focus();
   };
 
   const openTime = (el, btn) => {
@@ -602,7 +604,7 @@ body { background-size: 560px 560px; }
       [hc, mc].forEach((c) => { const s = c.querySelector('.sel') || (c === mc && c.children[0]); if (s) c.scrollTop = s.offsetTop - c.clientHeight / 2 + s.offsetHeight / 2; }); };
     box.addEventListener('keydown', (e) => { if (escClose(e, btn)) return; const col = e.target.closest('.pk-col'); if (!col || !['ArrowDown', 'ArrowUp'].includes(e.key)) return; e.preventDefault();
       const b = e.key === 'ArrowDown' ? e.target.nextElementSibling : e.target.previousElementSibling; if (b) b.focus(); });
-    openPop(btn, box, 'pk-pop-time'); draw(); (box.querySelector('.pk-col .sel') || box.querySelector('.pk-col .pk-tc')).focus();
+    openPop(btn, box, 'pk-pop-time', draw); (box.querySelector('.pk-col .sel') || box.querySelector('.pk-col .pk-tc')).focus();
   };
 
   const enhance = (el) => {
