@@ -31,3 +31,7 @@ Thumbs.db
 study-planer-source-code.zip
 study-planer-source-code/
 
+
+# Local Claude notes (per machine)
+CLAUDE.md
+.claude/
