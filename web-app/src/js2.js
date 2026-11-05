@@ -35,9 +35,7 @@
     modal(ok ? t('Approve: {0}', k.title) : t('Send back: {0}', k.title), field(ok ? t('Comment (optional)') : t('What needs to change?'), fb), [{ label: t('Cancel') }, { label: ok ? t('Approve') : t('Send back'), primary: true, fn: () => {
       if (!ok && !fb.value.trim()) { toast(t('Please say what to change.')); return false; } k.review = ok ? 'approved' : 'changes'; k.feedback = fb.value.trim(); if (!ok) { k.status = 'doing'; k.doneAt = null; } toast(t('Saved. The child will see it.')); rerender(); } }]); };
   /* ---------- Attached files (worksheets to print) ----------
-     Stored with the artifact when this view may upload (assets), otherwise kept in this browser (IndexedDB). */
-  const ASSET_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-  const capP = (n) => { try { return window.claude && window.claude.use ? window.claude.use(n).catch(() => null) : Promise.resolve(null); } catch (e) { return Promise.resolve(null); } };
+     Stored on the server when the page is served by the backend, otherwise kept in this browser (IndexedDB). */
   const idb = (() => { let p = null; const open = () => (p = p || new Promise((res, rej) => { try { const r = indexedDB.open('study-planner-files', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } }));
     const tx = (mode, fn) => open().then((db) => new Promise((res, rej) => { const s = db.transaction('f', mode).objectStore('f'); const q = fn(s); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }));
     return { put: (k, v) => tx('readwrite', (s) => s.put(v, k)), get: (k) => tx('readonly', (s) => s.get(k)), del: (k) => tx('readwrite', (s) => s.delete(k)) }; })();
@@ -45,23 +43,16 @@
   const putFile = async (file) => { const type = file.type || (/\.pdf$/i.test(file.name) ? 'application/pdf' : ''); const meta = { name: file.name, type, size: file.size };
     if (SRV.on) { if (file.size > 20 * 1048576) throw new Error(t('That file is bigger than 20 MB.'));
       try { const r = await api('/api/files', { method: 'POST', headers: { 'Content-Type': type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) }, body: file }); if (r.ok) return { ...meta, asset: (await r.json()).id }; if (r.status === 413) throw new Error(t('That file is bigger than 20 MB.')); } catch (e) { if (e && e.message === t('That file is bigger than 20 MB.')) throw e; } }
-    if (ASSET_TYPES.includes(type) && file.size <= 20 * 1048576) { const assets = await capP('assets'); if (assets) { try { const r = await assets.upload(file, { type }); return { ...meta, asset: r.id }; } catch (e) { if (e && e.code === 'too_large') throw new Error(t('That file is bigger than 20 MB.')); } } }
     const key = `f_${uid()}`; await idb.put(key, file); return { ...meta, local: key }; };
   const blobOf = async (f) => { if (f.asset) { const r = await fetch(`/_blob/${f.asset}`); if (!r.ok) throw new Error('missing'); return r.blob(); } const b = await idb.get(f.local); if (!b) throw new Error('missing'); return b; };
-  const urlOf = async (f) => (f.asset ? `/_blob/${f.asset}` : URL.createObjectURL(await blobOf(f)));
-  const dropFile = async (f) => { const used = D.tasks.some((k) => (k.files || []).some((x) => (f.asset && x.asset === f.asset) || (f.local && x.local === f.local))); if (used) return; try { if (f.local) await idb.del(f.local); else if (f.asset) { if (SRV.on) await api(`/api/files/${f.asset}`, { method: 'DELETE' }); else { const a = await capP('assets'); if (a) await a.delete(f.asset); } } } catch (e) { /* already gone */ } };
+  const dropFile = async (f) => { const used = D.tasks.some((k) => (k.files || []).some((x) => (f.asset && x.asset === f.asset) || (f.local && x.local === f.local))); if (used) return; try { if (f.local) await idb.del(f.local); else if (f.asset && SRV.on) await api(`/api/files/${f.asset}`, { method: 'DELETE' }); } catch (e) { /* already gone */ } };
   // Files attached before the backend existed live only in this browser (IndexedDB): move them to the server.
   const migrateFiles = async () => { if (!SRV.on) return; let moved = 0;
     for (const k of D.tasks) for (const f of (k.files || [])) { if (!f.local || f.asset) continue;
       try { const b = await idb.get(f.local); if (!b) continue; const r = await api('/api/files', { method: 'POST', headers: { 'Content-Type': f.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(f.name) }, body: b });
         if (!r.ok) continue; f.asset = (await r.json()).id; idb.del(f.local).catch(() => {}); delete f.local; moved++; } catch (e) { /* try again next time */ } }
     if (moved) save(); };
-  const printFile = async (f) => { try { const url = await urlOf(f);
-      if (/image/.test(f.type)) { const fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.append(fr); const d = fr.contentDocument; d.open(); d.write(`<!doctype html><title>${f.name.replace(/</g, '')}</title><style>@page{margin:10mm}body{margin:0}img{max-width:100%;max-height:100vh;display:block;margin:auto}</style><img src="${url}">`); d.close(); const img = d.querySelector('img'); const go = () => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { toast(t('Printing is not available here. Use Download and print the file.')); } setTimeout(() => fr.remove(), 60000); }; img.complete ? go() : (img.onload = go); return; }
-      const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove(); toast(t('The file opens in a new tab. Press Print there (Ctrl+P / ⌘P).'));
-    } catch (e) { toast(e && e.message === 'missing' ? t('This file is not on this device. Attach it again here.') : t('Could not open the file.')); } };
-  const saveFile = async (f) => { try { const blob = await blobOf(f); const dl = await capP('downloads');
-      if (dl) { try { await dl.save({ filename: f.name, data: blob }); return; } catch (e) { if (e && e.code === 'declined') return; } }
+  const saveFile = async (f) => { try { const blob = await blobOf(f);
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = f.name; document.body.append(a); a.click(); a.remove();
     } catch (e) { toast(e && e.message === 'missing' ? t('This file is not on this device. Attach it again here.') : t('Could not open the file.')); } };
   const printable = (f) => /pdf|image/.test(f.type);
@@ -184,7 +175,6 @@
   const enhanceIn = (root) => { root.querySelectorAll('select, input[type=date], input[type=time]').forEach(enhance); };
   const fld = (l, el) => h('div', { class: 'f' }, h('span', { class: 'label' }, l), el);
   const themeDialog = () => {
-    const sw = { lavender: '#a066c8', blue: '#1f6fd1', green: '#2e8b57', teal: '#0e8a8c', gray: '#4b5b6e' }; const nm = { lavender: t('Lavender'), blue: t('Sky blue'), green: t('Green'), teal: t('Teal'), gray: t('Gray') };
     const body = h('div', { class: 'stackc' }, fld(t('Mode'), segEl([['light', t('Light')], ['dark', t('Dark')]], THEME, (x) => { THEME = x; LS.set('sp-theme', x); decorate(); })),
       h('p', { class: 'small soft' }, t('Colours follow who is using the planner: Ben red, Shin blue, Mom brown.')));
     modal(t('Appearance'), body, [{ label: t('Close'), primary: true }]);

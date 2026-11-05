@@ -18,7 +18,6 @@
   const LS = { get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage blocked */ } } };
   const uid = () => Math.random().toString(36).slice(2, 9);
   let LANG = LS.get('sp-lang', 'en') === 'vi' ? 'vi' : 'en';
-  let ACCENT = (() => { const a = LS.get('sp-accent', 'lavender'); return ['lavender', 'blue', 'green', 'teal', 'gray'].includes(a) ? a : 'lavender'; })();
   let THEME = LS.get('sp-theme', 'light') === 'dark' ? 'dark' : 'light';
   const VI = {};   // filled at the bottom of the file
   const t = (s, ...a) => { let r = (LANG === 'vi' && VI[s]) || s; a.forEach((x, i) => { r = r.split(`{${i}}`).join(x); }); return r; };
@@ -44,7 +43,6 @@
   const pct = (a, b) => (b ? Math.round((a / b) * 100) : null);
   const todayStr = () => ymd(new Date());
   const nowMin = () => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); };
-  const NAMEKEY = 'names';
 
   /* ---------- state (kept only in this browser) ---------- */
   const KEY = 'study-planner-wc-v3'; try { localStorage.removeItem('study-planner-wc-v1'); localStorage.removeItem('study-planner-wc-v2'); } catch (e) {}

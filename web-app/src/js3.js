@@ -2,7 +2,6 @@
   /* ---------- Today ---------- */
   const pageHead = (title, sub, ...acts) => h('div', { class: 'phead' }, h('div', null, h('h1', null, title), sub ? h('p', null, sub) : null), h('div', { class: 'acts' }, acts));
   const kidSelect = () => (UI.role !== 'parent' ? null : h('select', { class: 'input', style: 'width:auto', 'aria-label': t('Choose a student'), onchange: (e) => { UI.who = e.target.value; render(); } }, [['all', t('Everyone')], ...KIDS.map((c) => [c, NAME(c)]), [MOM, `👩 ${NAME(MOM)}`]].map(([v, l]) => h('option', { value: v, selected: UI.who === v }, l))));
-  const prePill = (k) => { const l = labelOf(k); return h('span', { class: `pre sub-${skey(k.subject)}` }, `${SEMO[skey(k.subject)]} ${l || t('Study')}`); };
   const dueInfo = (k) => { if (!k.due) return null; const today = todayStr(); const n = daysBetween(today, k.due); const done = k.status === 'done';
     if (!done && k.child !== MOM && k.date > k.due) return { cls: 'b-red', txt: t('⚠ Planned after the deadline ({0})', fmtDay(k.due)) };
     if (done) return { cls: '', txt: t('Due {0}', fmtDay(k.due)) };
