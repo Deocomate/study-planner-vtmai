@@ -36,12 +36,18 @@ Cloudflare's free plan would then cap uploads at 100 MB.
 
 ## Update the app
 
-1. Locally: `git archive --format=tar.gz -o app.tgz HEAD server web-app`
-2. Upload `app.tgz` to the server and extract it over `/opt/study-planner`.
-3. `systemctl restart study-planner`
-4. Check: `curl -s http://127.0.0.1:3000/api/health` returns 200.
+Deploy only what is committed and pushed, so the server always matches a commit on `origin/main`.
 
-`/data` is never touched by an update.
+1. Rebuild the UI if `web-app/src` or `web-app/i18n` changed (`node web-app/build.mjs`), commit, push.
+2. Locally: `git fetch && git -c core.autocrlf=false archive --format=tar.gz -o app.tgz origin/main server web-app`
+   (`core.autocrlf=false` keeps LF line endings on Windows).
+3. On the server: extract into `/opt/study-planner.new`, write the short commit hash to
+   `/opt/study-planner.new/DEPLOYED_COMMIT`, move the current `/opt/study-planner` to
+   `/opt/study-planner.prev`, move `.new` into place, then `systemctl restart study-planner`.
+4. Check: `curl -s http://127.0.0.1:3000/api/health` returns 200 and `cat /opt/study-planner/DEPLOYED_COMMIT`.
+
+Rollback: swap `/opt/study-planner.prev` back into place and restart. `/data` is never touched by an
+update.
 
 ## Change settings
 
