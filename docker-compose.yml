@@ -14,19 +14,18 @@ services:
       - PORT=3000
       - HOST=0.0.0.0
       - DATA_DIR=/data
-      - APP_BASE_URL=${APP_BASE_URL:-}
-      - COOKIE_SECURE=${COOKIE_SECURE:-1}
-      - SETUP_CODE=${SETUP_CODE:-}
-      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-10}
-      # Cấu hình gửi email nhắc việc (tuỳ chọn: Resend hoặc SMTP)
-      - MAIL_FROM=${MAIL_FROM:-}
-      - RESEND_API_KEY=${RESEND_API_KEY:-}
-      - SMTP_HOST=${SMTP_HOST:-}
-      - SMTP_PORT=${SMTP_PORT:-465}
-      - SMTP_SECURE=${SMTP_SECURE:-tls}
-      - SMTP_USER=${SMTP_USER:-}
-      - SMTP_PASS=${SMTP_PASS:-}
+      - WEB_DIR=/app/web-app
+      - TZ=${TZ:-Asia/Ho_Chi_Minh}
+      # Mật khẩu bảo vệ trang web (tuỳ chọn, nên đặt). Để trống = ai có link cũng vào được.
+      - APP_USER=${APP_USER:-}
+      - APP_PASSWORD=${APP_PASSWORD:-}
+      # Dung lượng tối đa: mỗi file đính kèm / file .zip khi nhập dữ liệu (MB)
+      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-20}
+      - MAX_IMPORT_MB=${MAX_IMPORT_MB:-1024}
+      # Số bản sao lưu tự động giữ lại trên máy chủ (/data/backups)
+      - KEEP_BACKUPS=${KEEP_BACKUPS:-30}
     volumes:
+      # Cơ sở dữ liệu SQLite + bản sao lưu tự động nằm ở đây, không mất khi redeploy
       - study_data:/data
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"]

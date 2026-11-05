@@ -35,3 +35,8 @@ study-planer-source-code/
 # Local Claude notes (per machine)
 CLAUDE.md
 .claude/
+
+# Data backups (export/import .zip)
+study-planner-backup_*.zip
+auto-backup_*.zip
+before-import_*.zip

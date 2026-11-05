@@ -1,7 +1,6 @@
 # Data model (current web app)
 
-The live app is one static page (`dist/index.html`) hosted as a claude.ai artifact. It has **no server and no database**.
-All data lives in the viewer's browser:
+The app is one static page (`dist/index.html`). Served by the Node backend (`server/`), the state `D` is stored in SQLite on the server (`GET/PUT /api/state`) and attached files go to `POST /api/files` / `/_blob/<id>`; localStorage then only keeps a copy. Opened without the backend (file, claude.ai artifact) it works as before, browser only:
 
 | Where | Key | What |
 |---|---|---|

@@ -2,42 +2,32 @@ FROM node:22-slim
 
 WORKDIR /app
 
-# Copy application files from legacy-server-prototype
-COPY legacy-server-prototype/package.json ./
-COPY legacy-server-prototype/migrations ./migrations
-COPY legacy-server-prototype/server ./server
-COPY legacy-server-prototype/public ./public
+# Backend (Node, no npm dependencies: uses built-in node:sqlite + zlib)
+COPY server/package.json ./server/package.json
+COPY server/*.js ./server/
+COPY server/public ./server/public
 
-# Archive legacy prototype at /legacy.html
-RUN mv ./public/index.html ./public/legacy.html
+# Web app (the UI, served at /) + sample files + screenshots
+COPY web-app/dist/index.html ./web-app/dist/index.html
+COPY web-app/samples ./web-app/samples
+COPY web-app/docs/screenshots ./web-app/docs/screenshots
 
-# Serve the true client app (web-app) as the main root index.html
-COPY web-app/dist/index.html ./public/index.html
-COPY web-app/dist/index.html ./public/web-app.html
-
-# Copy sample files so users can download or test import
-COPY web-app/samples ./public/samples
-
-# Copy screenshots for reference
-COPY web-app/docs/screenshots ./public/screenshots
-
-# Ensure Content-Security-Policy allows web-app's inline scripts and fonts
-RUN sed -i "s/script-src 'self'/script-src 'self' 'unsafe-inline'/g" ./server/app.js && \
-    sed -i "s/style-src 'self' 'unsafe-inline'/style-src 'self' 'unsafe-inline' https:\/\/fonts.googleapis.com/g" ./server/app.js && \
-    sed -i "s/default-src 'self'/default-src 'self' data: blob: https:\/\/fonts.googleapis.com https:\/\/fonts.gstatic.com/g" ./server/app.js
-
-# Ensure data directory exists
-RUN mkdir -p /data/uploads
+RUN mkdir -p /data/backups
 
 ENV NODE_ENV=production \
     PORT=3000 \
     HOST=0.0.0.0 \
-    DATA_DIR=/data
+    DATA_DIR=/data \
+    WEB_DIR=/app/web-app \
+    TZ=Asia/Ho_Chi_Minh
 
-# Persistent storage for SQLite database & uploaded files
+# Persistent storage: SQLite database (/data/study_planner.sqlite) + automatic backups (/data/backups)
 VOLUME /data
 
-# Expose internal port 3000 (traefik/coolify routes traffic here without binding host ports)
+# Internal port 3000 (Coolify/Traefik routes traffic here without binding host ports)
 EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:3000/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "--disable-warning=ExperimentalWarning", "server/index.js"]

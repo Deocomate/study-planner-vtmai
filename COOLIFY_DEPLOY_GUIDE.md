@@ -37,14 +37,12 @@ Chuyển qua tab **Environment Variables** trong Coolify và thêm các biến c
 | Tên biến | Giá trị mẫu | Bắt buộc? | Mô tả |
 |---|---|---|---|
 | `APP_BASE_URL` | `https://study.yourdomain.com` | Khuyên dùng | Domain chính thức của ứng dụng (dùng tạo link trong email nhắc việc). |
-| `COOKIE_SECURE` | `1` | Có (nếu dùng HTTPS) | Đặt `1` để cookie đăng nhập có cờ `Secure`, chống lộ session qua HTTP. |
-| `SETUP_CODE` | `MatKhauThietLapBiMat2026` | **Rất quan trọng** | Mã bảo vệ khi thiết lập lần đầu. Tránh trường hợp người lạ truy cập vào trang web lúc vừa deploy xong để tự tạo tài khoản phụ huynh. |
-| `MAX_UPLOAD_MB` | `10` | Tuỳ chọn | Giới hạn dung lượng file bài tập/ảnh đính kèm (mặc định 10MB). |
-| `MAIL_FROM` | `Study Planner <noreply@yourdomain.com>` | Tuỳ chọn | Tên người gửi email thông báo. |
-| `RESEND_API_KEY` | `re_123456...` | Tuỳ chọn | Nếu muốn gửi email nhắc việc qua dịch vụ Resend. |
-| `SMTP_HOST` | `smtp.gmail.com` | Tuỳ chọn | Nếu gửi qua Gmail SMTP (port 465, SSL). |
-| `SMTP_USER` | `email-cua-ban@gmail.com` | Tuỳ chọn | Tài khoản Gmail. |
-| `SMTP_PASS` | `xxxx xxxx xxxx xxxx` | Tuỳ chọn | App Password 16 ký tự của Google. |
+| `TZ` | `Asia/Ho_Chi_Minh` | Tuỳ chọn | Múi giờ dùng cho tên file sao lưu. |
+| `APP_PASSWORD` | `MatKhauGiaDinh2026` | **Nên đặt** | Mật khẩu mở trang web (trình duyệt hỏi khi vào). Để trống = ai có link cũng xem/sửa được dữ liệu. |
+| `APP_USER` | `me` | Tuỳ chọn | Tên đăng nhập; để trống = tên gì cũng được, chỉ cần đúng mật khẩu. |
+| `MAX_UPLOAD_MB` | `20` | Tuỳ chọn | Giới hạn dung lượng mỗi file đính kèm (mặc định 20MB). |
+| `MAX_IMPORT_MB` | `1024` | Tuỳ chọn | Giới hạn dung lượng file .zip khi nhập dữ liệu. |
+| `KEEP_BACKUPS` | `30` | Tuỳ chọn | Số bản sao lưu tự động giữ lại trong `/data/backups`. |
 
 ### Bước 5: Kiểm Tra Volume Lưu Trữ Dữ Liệu
 Trong `docker-compose.yml`, volume được định nghĩa:
@@ -52,7 +50,7 @@ Trong `docker-compose.yml`, volume được định nghĩa:
 volumes:
   - study_data:/data
 ```
-Volume này đảm bảo cơ sở dữ liệu SQLite (`/data/planner.db`) và các file tải lên (`/data/uploads`) được lưu trên ổ cứng VPS của Coolify, không bị mất khi redeploy hoặc cập nhật code.
+Volume này đảm bảo cơ sở dữ liệu SQLite (`/data/study_planner.sqlite`, chứa cả bài tập lẫn file đính kèm) và các bản sao lưu tự động (`/data/backups`) được lưu trên ổ cứng VPS của Coolify, không bị mất khi redeploy hoặc cập nhật code.
 
 ### Bước 6: Nhấn Deploy
 1. Nhấn nút **Deploy** ở góc phải trên Coolify.
@@ -70,4 +68,6 @@ Volume này đảm bảo cơ sở dữ liệu SQLite (`/data/planner.db`) và c�
    - Trang **Hôm nay**: phân chia rõ ràng Việc của mẹ, Bài quá hạn, Hạn hôm nay, Luyện tập hằng ngày; cột bên phải hiển thị Lịch học thêm và Hạn nộp trong tuần.
    - Đầy đủ tính năng: Nhập file Excel/CSV xem trước (`Import`), Thêm việc (`Add task`), Xem lịch tháng (`Month`), Phiếu in bài tập (`Print sheet`), Phần thưởng & tích điểm iPad (`Rewards`), và giao diện tối ưu trên điện thoại.
    - Hình ảnh giao diện thực tế đối chiếu chuẩn xác với 10 ảnh mẫu trong thư mục `web-app/docs/screenshots/`.
-3. Nếu cần truy cập lại bản thử nghiệm backend cũ (legacy server prototype) để thiết lập tài khoản phụ huynh hoặc xem REST API, bạn có thể truy cập: `https://study.yourdomain.com/legacy.html`.
+3. Dữ liệu được lưu trên máy chủ và dùng chung giữa các máy.
+4. **Sao lưu / khôi phục:** vào `https://study.yourdomain.com/backup` → "Tải bản sao lưu (.zip)" để xuất, hoặc chọn file .zip rồi "Nhập dữ liệu" để khôi phục.
+5. Bản thử nghiệm backend cũ (`legacy-server-prototype/`) không còn được chạy trong Docker; mã nguồn vẫn giữ trong repo để tham khảo.

@@ -61,11 +61,39 @@
     { id: uid(), emoji: '🎬', name: 'Choose the family movie', cost: 80, ipadMin: 0 }, { id: uid(), emoji: '🎁', name: 'Gift worth 100,000 VND', cost: 300, ipadMin: 0 }];
   const fresh = () => ({ tasks: [], blocks: DEFAULT_BLOCKS(), links: [], rewards: DEFAULT_REWARDS(), redeems: [], adj: [], rules: { per5: 1, ontime: 5, approved: 10, daily: 5, ipadCap: 60 }, names: { ben: 'Ben', shin: 'Shin' } });
   let D;
-  const FIRST_RUN = LS.get(KEY, null) === null;
+  let FIRST_RUN = LS.get(KEY, null) === null;
   try { D = JSON.parse(LS.get(KEY, 'null')) || fresh(); } catch (e) { D = fresh(); }
   const ensure = () => { const f = fresh(); for (const k of Object.keys(f)) if (D[k] === undefined) D[k] = f[k]; D.rules = Object.assign(f.rules, D.rules); D.names = Object.assign(f.names, D.names); };
   ensure();
-  const save = () => LS.set(KEY, JSON.stringify(D));
+  /* ---------- server sync: when the page is served by the Node backend (server/), the state lives in its database.
+     Without a backend (/api/state missing) everything stays in this browser as before. ---------- */
+  const SRV = { on: false, rev: 0, epoch: '', timer: null, busy: false, dirty: false };
+  const api = (path, opt = {}) => fetch(path, { credentials: 'same-origin', cache: 'no-store', ...opt });
+  const adopt = (j) => { SRV.rev = j.rev; SRV.epoch = j.epoch; if (j.state) { D = j.state; ensure(); LS.set(KEY, JSON.stringify(D)); FIRST_RUN = false; } };
+  const pushState = async () => { clearTimeout(SRV.timer); if (!SRV.on) return; if (SRV.busy) { SRV.timer = setTimeout(pushState, 300); return; }
+    SRV.busy = true; SRV.dirty = false;
+    try { const r = await api('/api/state', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: D, epoch: SRV.epoch }) });
+      const j = await r.json();
+      if (r.status === 409) { adopt(j); render(); }   // data was replaced by an import: show the new data
+      else if (r.ok) { SRV.rev = j.rev; SRV.epoch = j.epoch; } else throw new Error(r.status);
+    } catch (e) { SRV.dirty = true; SRV.timer = setTimeout(pushState, 5000); }
+    SRV.busy = false; };
+  const save = () => { LS.set(KEY, JSON.stringify(D)); if (SRV.on) { SRV.dirty = true; clearTimeout(SRV.timer); SRV.timer = setTimeout(pushState, 400); } };
+  const pull = async () => { if (!SRV.on || SRV.dirty || SRV.busy || document.querySelector('.modal')) return;
+    try { const m = await (await api('/api/state/rev')).json(); if (m.rev === SRV.rev && m.epoch === SRV.epoch) return;
+      const j = await (await api('/api/state')).json(); if (SRV.dirty || SRV.busy || document.querySelector('.modal') || !j.state) return; adopt(j); render(); } catch (e) { /* offline: try again later */ } };
+  const SRV_READY = (async () => { try { const ac = new AbortController(); const to = setTimeout(() => ac.abort(), 5000);
+      const r = await api('/api/state', { signal: ac.signal }); clearTimeout(to); if (!r.ok) return; const j = await r.json(); if (!j || j.app !== 'study-planner') return;
+      SRV.on = true; const local = D, fresh1 = !LS.get('sp-synced', '') && !FIRST_RUN; if (fresh1) LS.set(`${KEY}-before-sync`, JSON.stringify(local));
+      adopt(j); LS.set('sp-synced', '1');
+      if (!j.state || (fresh1 && local.tasks.length && !D.tasks.length)) { D = local; LS.set(KEY, JSON.stringify(D)); await pushState(); }   // empty server: upload what this browser has
+      else if (fresh1) {   // first time this browser meets the server: keep its own tasks etc. instead of losing them
+        let n = 0; for (const k of ['tasks', 'links', 'redeems', 'adj']) { const ids = new Set((D[k] || []).map((x) => x.id)); (local[k] || []).forEach((x) => { if (!ids.has(x.id)) { (D[k] = D[k] || []).push(x); n++; } }); }
+        for (const k of ['customSubjects', 'customTeachers']) (local[k] || []).forEach((x) => { D[k] = D[k] || []; if (!D[k].includes(x)) { D[k].push(x); n++; } });
+        if (n) { LS.set(KEY, JSON.stringify(D)); await pushState(); } }
+      setInterval(pull, 15000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pull(); });
+      addEventListener('pagehide', () => { if (SRV.dirty) try { navigator.sendBeacon('/api/state', new Blob([JSON.stringify({ state: D, epoch: SRV.epoch })], { type: 'application/json' })); } catch (e) { /* best effort */ } });
+    } catch (e) { /* no backend: keep data in this browser */ } })();
   const NAME = (c) => (c === 'parent' ? t('Parent') : c === MOM ? (D.names.mom || t('Mom')) : D.names[c] || c);
   const KIDS = ['ben', 'shin']; const MOM = 'mom'; const PEOPLE = [...KIDS, MOM];
   const UI = { role: ['ben', 'shin', 'parent'].includes(LS.get('sp-role', 'parent')) ? LS.get('sp-role', 'parent') : 'parent', page: 'today', date: todayStr(), month: todayStr().slice(0, 7), who: 'all', perf: todayStr(), sheet: todayStr() };

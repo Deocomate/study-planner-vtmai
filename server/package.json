@@ -1,0 +1,12 @@
+{
+  "name": "study-planner-server",
+  "version": "1.0.0",
+  "description": "Backend for the Study Planner web app: stores all data in SQLite, export/import as .zip.",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}

@@ -9,7 +9,8 @@
 | `web-app/` | **Mã nguồn bản đang dùng.** Vanilla JS, không framework, không thư viện. |
 | `web-app/src/` | `js1.js` (tiện ích, ngày giờ, state, điểm thưởng) · `js2.js` (giao diện chung, form việc, đính kèm file, theme theo người dùng, màn hình chào, hình động hai bên) · `js3.js` (Hôm nay, Tháng, Hiệu suất, Tài liệu, Học sinh) · `js4.js` (Phần thưởng, nhập Excel/CSV, xếp lịch, phiếu in) · `js5.js` (nhắc việc, khởi động) · `style.css` |
 | `web-app/i18n/vi.json` | Bản dịch tiếng Việt (key = câu tiếng Anh trong `t('…')`). |
-| `web-app/build.py` | Gộp `src/` + `i18n/` thành một file `dist/index.html`. Chạy: `python3 build.py`. |
+| `web-app/build.py` / `web-app/build.mjs` | Gộp `src/` + `i18n/` thành một file `dist/index.html`. Chạy: `python3 build.py` hoặc `node build.mjs` (cùng kết quả, không cần Python). |
+| `server/` | **Backend Node.js** (không thư viện ngoài, dùng `node:sqlite`): phục vụ giao diện `web-app` và lưu toàn bộ dữ liệu vào SQLite (`/data/study_planner.sqlite`), xuất/nhập dữ liệu bằng file .zip, sao lưu tự động hằng ngày. Test: `cd server && npm test`. |
 | `web-app/dist/index.html` | Bản build, giống hệt bản đang chạy trên claude.ai (đã đối chiếu ngày 4/11/2026). Mở trực tiếp bằng trình duyệt là chạy, có dữ liệu mẫu ở `samples/` để import thử. |
 | `web-app/docs/screenshots/` | Ảnh chụp giao diện từng màn hình: màn hình chào của Mẹ / Ben / Shin, Hôm nay, Nhập file, Thêm việc, Tháng, Phiếu in, Phần thưởng, điện thoại. |
 | `web-app/docs/DATA_MODEL.md` | Cấu trúc dữ liệu, nơi lưu, luật xếp lịch, tính điểm, nhập Excel. |
@@ -20,8 +21,11 @@
 
 ## Lưu ý quan trọng cho dev
 
-- **Bản đang dùng không có database trên server.** Mọi dữ liệu (bài tập, điểm, file đính kèm) nằm trong trình duyệt của người dùng (localStorage + IndexedDB) và kho file của claude.ai. Vì vậy dữ liệu thật của gia đình **không có trong gói này**. Thư mục `database/` chỉ có lược đồ và dữ liệu mặc định.
-- Muốn dùng chung giữa các máy (mẹ nhập, con xem trên máy khác) thì cần backend thật: dùng `database/schema.sql`, chuyển state `D` (xem `DATA_MODEL.md`) sang API, file đính kèm sang object storage.
+- **Có backend (`server/`) từ 05/11/2026.** Khi trang được mở qua server này, toàn bộ state `D` và file đính kèm được lưu trong SQLite trên server, dùng chung giữa các máy (tự đồng bộ mỗi 15 giây và khi quay lại tab). Mở `dist/index.html` trực tiếp (không có server) thì vẫn chạy như cũ, lưu trong trình duyệt.
+- Lần đầu một trình duyệt kết nối server: nếu server còn trống thì dữ liệu của trình duyệt đó được đưa lên; nếu server đã có dữ liệu thì các bài tập riêng của trình duyệt được gộp vào (không mất). File đính kèm cũ trong IndexedDB tự được chuyển lên server.
+- **Sao lưu:** trang `/backup` (không nằm trong giao diện chính) có nút Xuất dữ liệu → tải `study-planner-backup_DD-MM-YYYY_HH-mm-ss.zip` (gồm `manifest.json`, `data.json`, `files.json`, `files/<id>/<tên file>`), và Nhập dữ liệu từ file zip đó. Server tự lưu 1 bản trước mỗi lần nhập và 1 bản mỗi ngày trong `/data/backups`.
+- API: `GET/PUT /api/state`, `POST /api/files`, `GET /_blob/:id`, `GET /api/export`, `POST /api/import`, `GET /api/backups` (xem đầu file `server/index.js`).
+- Bảo vệ bằng mật khẩu: đặt biến `APP_PASSWORD` (và tuỳ chọn `APP_USER`) → trình duyệt hỏi mật khẩu trước khi mở trang. Để trống thì ai có link cũng vào được.
 - Trang chạy trong khung bảo mật của claude.ai: không gọi được `window.print`, không tải file trực tiếp (dùng capability `downloads`), không gọi mạng ra ngoài. Ngoài claude.ai thì những giới hạn này không còn.
 - Không có khoá API hay mật khẩu nào trong gói. `legacy-server-prototype/.env.example` chỉ là mẫu.
 

@@ -26,5 +26,5 @@
 
   VI_FILL();
   document.getElementById('hdr');
-  seedOnce(); try { retimeOnce(); } catch (e) { /* keep times */ } render(); try { if (!sessionStorage.getItem('sp-splash')) { sessionStorage.setItem('sp-splash', '1'); showSplash(); } } catch (e) { showSplash(); } checkReminders(); setInterval(() => { checkReminders(); if (UI.page === 'today' && UI.date === todayStr()) render(); }, 30000);
+  SRV_READY.then(() => { seedOnce(); try { retimeOnce(); } catch (e) { /* keep times */ } render(); migrateFiles(); try { if (!sessionStorage.getItem('sp-splash')) { sessionStorage.setItem('sp-splash', '1'); showSplash(); } } catch (e) { showSplash(); } checkReminders(); setInterval(() => { checkReminders(); if (UI.page === 'today' && UI.date === todayStr()) render(); }, 30000); });
 })();
