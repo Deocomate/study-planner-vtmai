@@ -3,10 +3,10 @@
   const rerender = () => { save(); render(); };
   const toast = (m) => { document.querySelectorAll('.toast').forEach((x) => x.remove()); const el = h('div', { class: 'toast', role: 'status' }, m); document.body.append(el); setTimeout(() => el.remove(), 2800); };
   const modal = (title, body, actions) => {
-    const close = () => ov.remove();
+    const close = () => { closePop(); ov.remove(); };
     const ov = h('div', { class: 'overlay', onmousedown: (e) => { if (e.target === ov) close(); } }, h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
       h('h2', null, title), body, h('div', { class: 'foot' }, (actions || [{ label: t('Close') }]).map((a) => h('button', { class: `btn ${a.primary ? 'primary' : 'ghost'} ${a.danger ? 'danger' : ''}`, onclick: () => { if (!a.fn || a.fn() !== false) close(); } }, a.label)))));
-    document.body.append(ov); const f = ov.querySelector('input:not([type=hidden]),textarea,select'); if (f) f.focus(); return close;
+    document.body.append(ov); enhanceIn(ov); const f = ov.querySelector('input:not([type=hidden]):not(.pk-native),textarea,.pk'); if (f) f.focus(); return close;
   };
   const confirmBox = (title, text, label, fn, danger) => modal(title, h('p', { class: 'soft' }, text), [{ label: t('Cancel') }, { label: t(label), primary: !danger, danger, fn }]);
   const field = (label, input, hint) => h('label', { class: 'f' }, h('span', { class: 'label' }, label), input, hint ? h('span', { class: 'hint' }, hint) : null);
@@ -79,22 +79,107 @@
   const quickAttach = (k) => { const p = filePicker(k.files, (list) => { k.files = list.slice(); rerender(); }); modal(t('Files to print: {0}', k.title), h('div', { class: 'stackc' }, h('p', { class: 'small soft' }, t('PDF or pictures of the worksheet. Your child taps Print on the task.')), p.el), [{ label: t('Close'), primary: true }]); };
   const linkList = (text) => [...new Set(String(text || '').split(/\s+/).map(safeUrl).filter(Boolean))].slice(0, 10);
 
-  const dateField = (init) => {
-    let val = init || todayStr(); let view = val.slice(0, 7); let open = false;
-    const btn = h('button', { type: 'button', class: 'input datebtn', 'aria-haspopup': 'dialog' }); const pop = h('div', { class: 'calpop', role: 'dialog', style: 'display:none' });
-    const box = h('div', { class: 'datewrap' }, btn, pop);
-    const label = () => { btn.replaceChildren(h('span', null, `📅 ${fmtLong(val)}`)); };
-    const draw = () => {
-      const first = view + '-01'; const off = wd(first) - 1; const [y, m] = view.split('-').map(Number); const n = new Date(y, m, 0).getDate(); const cells = [];
-      for (let i = 0; i < off; i++) cells.push(h('span'));
-      for (let d = 1; d <= n; d++) { const ds = `${view}-${String(d).padStart(2, '0')}`; cells.push(h('button', { type: 'button', class: 'cd' + (ds === val ? ' sel' : '') + (ds === todayStr() ? ' tod' : ''), onclick: () => { val = ds; open = false; pop.style.display = 'none'; label(); } }, String(d))); }
-      const shift = (k) => { const dt = new Date(y, m - 1 + k, 1); view = ymd(dt).slice(0, 7); draw(); };
-      pop.replaceChildren(h('div', { class: 'calh' }, h('button', { type: 'button', class: 'iconbtn', onclick: () => shift(-1), 'aria-label': t('Previous month') }, '‹'), h('b', null, monthLabel(view)), h('button', { type: 'button', class: 'iconbtn', onclick: () => shift(1), 'aria-label': t('Next month') }, '›')),
-        h('div', { class: 'calg' }, [1, 2, 3, 4, 5, 6, 7].map((i) => h('i', null, dowS(i))), cells));
-    };
-    btn.addEventListener('click', () => { open = !open; if (open) { view = val.slice(0, 7); draw(); } pop.style.display = open ? '' : 'none'; });
-    Object.defineProperty(box, 'value', { get: () => val }); label(); return box;
+  const dateField = (init) => inp({ type: 'date', value: init || todayStr(), required: true });
+
+  /* ---------- custom pickers ----------
+     Every <select>, date and time input keeps living in the page (hidden) and stays the source of truth:
+     code keeps reading .value and listening for "change". A styled button + popover replaces the browser UI. */
+  const ICON = {
+    date: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>',
+    time: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    select: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>',
+    prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>',
+    next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>' };
+  const POP = { anchor: null, close: null };
+  const closePop = () => { if (POP.close) POP.close(); };
+  const openPop = (anchor, content, cls) => {
+    closePop();
+    const pop = h('div', { class: `pk-pop ${cls}` }, content); document.body.append(pop);
+    const place = () => { const r = anchor.getBoundingClientRect(), vw = innerWidth, vh = innerHeight;
+      if (cls === 'pk-pop-list') pop.style.minWidth = `${Math.min(r.width, vw - 16)}px`;
+      const w = pop.offsetWidth, ph = pop.offsetHeight; let top = r.bottom + 6;
+      if (top + ph > vh - 8) top = r.top - ph - 6 >= 8 ? r.top - ph - 6 : Math.max(8, vh - ph - 8);
+      pop.style.left = `${Math.max(8, Math.min(r.left, vw - w - 8))}px`; pop.style.top = `${top}px`; };
+    const onDown = (e) => { if (!pop.contains(e.target) && !anchor.contains(e.target)) closePop(); };
+    const onScroll = (e) => { if (!pop.contains(e.target)) closePop(); };
+    document.addEventListener('pointerdown', onDown, true); document.addEventListener('scroll', onScroll, true); addEventListener('resize', closePop);
+    anchor.setAttribute('aria-expanded', 'true'); POP.anchor = anchor;
+    POP.close = () => { document.removeEventListener('pointerdown', onDown, true); document.removeEventListener('scroll', onScroll, true); removeEventListener('resize', closePop);
+      pop.remove(); anchor.setAttribute('aria-expanded', 'false'); POP.anchor = null; POP.close = null; };
+    place(); return pop;
   };
+  const NATIVE_VALUE = { SELECT: Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value'), INPUT: Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') };
+  /* set the hidden control like a person would: value + input/change events */
+  const pkSet = (el, btn, v) => { closePop(); btn.focus(); if (el.value === v) return; el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+  const escClose = (e, btn) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePop(); btn.focus(); return true; } if (e.key === 'Tab') closePop(); return false; };
+  const fmtPick = (s) => { const d = parse(s); return LANG === 'vi' ? `${dowS(wd(s))}, ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}` : `${dowS(wd(s))}, ${d.getDate()} ${EN_M[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`; };
+
+  const openSelect = (el, btn) => {
+    const opts = [...el.options]; let act = Math.max(0, el.selectedIndex); let typed = '', typedAt = 0;
+    const list = h('div', { class: 'pk-list', role: 'listbox', tabindex: '-1', 'aria-label': btn.getAttribute('aria-label') || null });
+    const items = opts.map((o, i) => h('div', { class: `pk-opt${i === el.selectedIndex ? ' sel' : ''}`, role: 'option', 'aria-selected': String(i === el.selectedIndex), 'aria-disabled': o.disabled ? 'true' : null,
+      onclick: () => choose(i), onmousemove: () => { if (act !== i) { act = i; mark(false); } } }, h('span', null, o.textContent), i === el.selectedIndex ? svg(ICON.check) : null));
+    const choose = (i) => { if (!opts[i] || opts[i].disabled) return; pkSet(el, btn, opts[i].value); };
+    const mark = (scroll) => { items.forEach((it, i) => it.classList.toggle('act', i === act)); if (scroll && items[act]) items[act].scrollIntoView({ block: 'nearest' }); };
+    const move = (to) => { const n = items.length; if (!n) return; let i = Math.max(0, Math.min(n - 1, to)); const dir = to < act ? -1 : 1; while (opts[i] && opts[i].disabled && i + dir >= 0 && i + dir < n) i += dir; act = i; mark(true); };
+    list.addEventListener('keydown', (e) => { if (escClose(e, btn)) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); move(act + 1); } else if (e.key === 'ArrowUp') { e.preventDefault(); move(act - 1); } else if (e.key === 'Home') { e.preventDefault(); move(0); } else if (e.key === 'End') { e.preventDefault(); move(items.length - 1); }
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(act); }
+      else if (e.key.length === 1) { const now = Date.now(); typed = now - typedAt > 700 ? e.key.toLowerCase() : typed + e.key.toLowerCase(); typedAt = now; const i = opts.findIndex((o) => o.textContent.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, '').startsWith(typed)); if (i >= 0) move(i); } });
+    list.append(...items); openPop(btn, list, 'pk-pop-list'); list.focus(); mark(true);
+  };
+
+  const openDate = (el, btn) => {
+    const today = todayStr(); let cur = el.value || today; let view = cur.slice(0, 7); const min = el.min || '', max = el.max || '';
+    const ok = (ds) => (!min || ds >= min) && (!max || ds <= max);
+    const box = h('div', { class: 'pk-cal', role: 'dialog', 'aria-label': btn.getAttribute('aria-label') || t('Choose a date') });
+    const draw = (focus) => {
+      const first = `${view}-01`; const start = addDays(first, 1 - wd(first)); const days = [];
+      for (let i = 0; i < 42; i++) { const ds = addDays(start, i); days.push(h('button', { type: 'button', class: `cd${ds.slice(0, 7) !== view ? ' out' : ''}${ds === el.value ? ' sel' : ''}${ds === today ? ' tod' : ''}`, tabindex: ds === cur ? '0' : '-1', disabled: !ok(ds), 'data-d': ds, 'aria-label': fmtLong(ds), 'aria-pressed': String(ds === el.value), onclick: () => pkSet(el, btn, ds) }, String(parse(ds).getDate()))); }
+      const shift = (k) => { const [y, m] = view.split('-').map(Number); view = ymd(new Date(y, m - 1 + k, 1)).slice(0, 7); cur = `${view}-${cur.slice(8)}`; while (cur.slice(0, 7) !== view) cur = addDays(cur, -1); draw(false); };
+      box.replaceChildren(
+        h('div', { class: 'calh' }, h('button', { type: 'button', class: 'pk-nav', onclick: () => shift(-1), 'aria-label': t('Previous month') }, svg(ICON.prev)), h('b', null, monthLabel(view)), h('button', { type: 'button', class: 'pk-nav', onclick: () => shift(1), 'aria-label': t('Next month') }, svg(ICON.next))),
+        h('div', { class: 'calg' }, [1, 2, 3, 4, 5, 6, 7].map((i) => h('i', null, dowS(i))), days),
+        h('div', { class: 'pk-foot' }, ok(today) ? h('button', { type: 'button', class: 'pk-link', onclick: () => pkSet(el, btn, today) }, t('Today')) : h('span'), el.required ? null : h('button', { type: 'button', class: 'pk-link soft', onclick: () => pkSet(el, btn, '') }, t('Clear'))));
+      if (focus !== false) box.querySelector(`[data-d="${cur}"]`)?.focus(); };
+    box.addEventListener('keydown', (e) => { if (escClose(e, btn)) return; const k = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+      if (k || e.key === 'PageUp' || e.key === 'PageDown') { if (!e.target.dataset.d) return; e.preventDefault();
+        if (k) cur = addDays(cur, k); else { const [y, m] = cur.split('-').map(Number); const d = new Date(y, m - 1 + (e.key === 'PageUp' ? -1 : 1), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); cur = ymd(new Date(d.getFullYear(), d.getMonth(), Math.min(Number(cur.slice(8)), last))); }
+        view = cur.slice(0, 7); draw(); } });
+    openPop(btn, box, 'pk-pop-cal'); draw();
+  };
+
+  const openTime = (el, btn) => {
+    const [h0, m0] = (el.value || '').split(':'); let hh = h0 || null;
+    const step = Math.max(1, Math.round((Number(el.step) || 300) / 60)); const mins = []; for (let m = 0; m < 60; m += step) mins.push(pad(m)); if (m0 && !mins.includes(m0)) { mins.push(m0); mins.sort(); }
+    const cell = (v, on, fn) => h('button', { type: 'button', class: `pk-tc${on ? ' sel' : ''}`, 'aria-pressed': String(on), onclick: fn }, v);
+    const box = h('div', { class: 'pk-timebox', role: 'dialog', 'aria-label': btn.getAttribute('aria-label') || t('Choose a time') });
+    const draw = () => {
+      const hc = h('div', { class: 'pk-col', role: 'group', 'aria-label': t('Hour') }, Array.from({ length: 24 }, (_, i) => pad(i)).map((v) => cell(v, v === hh, () => { hh = v; draw(); box.querySelector('.pk-col.m .pk-tc')?.focus(); })));
+      const mc = h('div', { class: 'pk-col m', role: 'group', 'aria-label': t('Minute') }, mins.map((v) => cell(v, hh === h0 && v === m0, () => pkSet(el, btn, `${hh || '00'}:${v}`))));
+      box.replaceChildren(...[h('div', { class: 'pk-time' }, h('div', null, h('span', { class: 'pk-th' }, t('Hour')), hc), h('div', null, h('span', { class: 'pk-th' }, t('Minute')), mc)),
+        el.required ? null : h('div', { class: 'pk-foot' }, h('span', { class: 'small muted' }, hh ? `${hh}:··` : ''), h('button', { type: 'button', class: 'pk-link soft', onclick: () => pkSet(el, btn, '') }, t('Clear')))].filter(Boolean));
+      [hc, mc].forEach((c) => { const s = c.querySelector('.sel') || (c === mc && c.children[0]); if (s) c.scrollTop = s.offsetTop - c.clientHeight / 2 + s.offsetHeight / 2; }); };
+    box.addEventListener('keydown', (e) => { if (escClose(e, btn)) return; const col = e.target.closest('.pk-col'); if (!col || !['ArrowDown', 'ArrowUp'].includes(e.key)) return; e.preventDefault();
+      const b = e.key === 'ArrowDown' ? e.target.nextElementSibling : e.target.previousElementSibling; if (b) b.focus(); });
+    openPop(btn, box, 'pk-pop-time'); draw(); (box.querySelector('.pk-col .sel') || box.querySelector('.pk-col .pk-tc')).focus();
+  };
+
+  const enhance = (el) => {
+    if (el.dataset.pk) return; const kind = el.tagName === 'SELECT' ? (el.multiple ? '' : 'select') : ['date', 'time'].includes(el.type) ? el.type : ''; if (!kind) return;
+    el.dataset.pk = kind;
+    const btn = h('button', { type: 'button', class: `input pk pk-${kind}`, 'aria-haspopup': kind === 'select' ? 'listbox' : 'dialog', 'aria-expanded': 'false', 'aria-label': el.getAttribute('aria-label') || null, disabled: el.disabled });
+    btn.style.cssText = el.style.cssText; el.classList.add('pk-native'); el.tabIndex = -1; el.setAttribute('aria-hidden', 'true'); el.before(btn);
+    const show = () => { const v = el.value; const text = kind === 'select' ? (el.options[el.selectedIndex]?.textContent || '') : kind === 'date' ? (v ? fmtPick(v) : '') : v;
+      btn.replaceChildren(h('span', { class: `pk-v${text ? '' : ' ph'}` }, text || (kind === 'date' ? t('Choose a date') : kind === 'time' ? '--:--' : '—')), svg(ICON[kind])); };
+    const d = NATIVE_VALUE[el.tagName]; Object.defineProperty(el, 'value', { configurable: true, get() { return d.get.call(this); }, set(v) { d.set.call(this, v); show(); } });
+    el.addEventListener('change', show);
+    btn.addEventListener('click', () => { if (POP.anchor === btn) return closePop(); (kind === 'select' ? openSelect : kind === 'date' ? openDate : openTime)(el, btn); });
+    btn.addEventListener('keydown', (e) => { if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && POP.anchor !== btn) { e.preventDefault(); btn.click(); } });
+    show();
+  };
+  const enhanceIn = (root) => { root.querySelectorAll('select, input[type=date], input[type=time]').forEach(enhance); };
   const fld = (l, el) => h('div', { class: 'f' }, h('span', { class: 'label' }, l), el);
   const themeDialog = () => {
     const sw = { lavender: '#a066c8', blue: '#1f6fd1', green: '#2e8b57', teal: '#0e8a8c', gray: '#4b5b6e' }; const nm = { lavender: t('Lavender'), blue: t('Sky blue'), green: t('Green'), teal: t('Teal'), gray: t('Gray') };
@@ -163,6 +248,7 @@
         h('button', { class: 'iconbtn', type: 'button', onclick: () => { LANG = LANG === 'vi' ? 'en' : 'vi'; LS.set('sp-lang', LANG); render(); }, 'aria-label': t('Language'), title: t('Language') }, LANG === 'vi' ? 'VI' : 'EN'),
         h('button', { class: 'iconbtn', type: 'button', onclick: askNotif, 'aria-label': t('Reminders'), title: t('Reminders') }, notifOK() ? '🔔' : '🔕'),
         h('button', { class: 'iconbtn', type: 'button', onclick: themeDialog, 'aria-label': t('Appearance'), title: t('Appearance') }, '🎨'),
+        SRV.on && UI.role === 'parent' ? h('a', { class: 'iconbtn', href: '/backup', 'aria-label': t('Back up & restore data'), title: t('Back up & restore data') }, '💾') : null,
         h('div', { class: 'who', role: 'group', 'aria-label': t('Who is using the planner?') }, ['ben', 'shin', 'parent'].map((r) => h('button', { type: 'button', 'aria-pressed': String(UI.role === r), onclick: () => { const changed = UI.role !== r; UI.role = r; LS.set('sp-role', r); if (!NAV().some(([k]) => k === UI.page)) UI.page = 'today'; render(); if (changed) showSplash(); } }, r === 'parent' ? NAME(MOM) : NAME(r))))),
       H ? h('span', { class: 'hold l', 'aria-hidden': 'true' }, H.icons[0]) : null,
       H ? h('div', { class: 'hold r', role: 'img', 'aria-label': H.left > 0 ? t('{0} day(s) until {1}', H.left, H.name) : H.name }, h('div', { class: 'htag' }, H.left > 0 ? [h('b', null, H.left), h('span', null, H.left === 1 ? t('day left') : t('days left'))] : h('span', null, t('Have fun!')), h('i', null, H.icons[1]))) : null);

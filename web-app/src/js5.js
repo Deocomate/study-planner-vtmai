@@ -26,5 +26,7 @@
 
   VI_FILL();
   document.getElementById('hdr');
+  /* pickers added later (e.g. a field shown after a choice) get the custom UI too */
+  new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches('select, input[type=date], input[type=time]')) enhance(n); else enhanceIn(n); } }).observe(document.body, { childList: true, subtree: true });
   SRV_READY.then(() => { seedOnce(); try { retimeOnce(); } catch (e) { /* keep times */ } render(); migrateFiles(); try { if (!sessionStorage.getItem('sp-splash')) { sessionStorage.setItem('sp-splash', '1'); showSplash(); } } catch (e) { showSplash(); } checkReminders(); setInterval(() => { checkReminders(); if (UI.page === 'today' && UI.date === todayStr()) render(); }, 30000); });
 })();

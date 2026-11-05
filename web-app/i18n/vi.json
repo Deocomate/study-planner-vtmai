@@ -425,5 +425,11 @@
  "✓ Done": "✓ Xong",
  "✓ Each task is placed on the day written in the file": "✓ Mỗi bài được đặt đúng ngày ghi trong file",
  "✓ Every task is planned before its deadline": "✓ Mọi việc đều được xếp trước hạn nộp",
- "✓ No day is over the daily limit": "✓ Không ngày nào vượt giới hạn"
+ "✓ No day is over the daily limit": "✓ Không ngày nào vượt giới hạn",
+ "Choose a date": "Chọn ngày",
+ "Choose a time": "Chọn giờ",
+ "Hour": "Giờ",
+ "Minute": "Phút",
+ "Clear": "Xoá",
+ "Back up & restore data": "Sao lưu & khôi phục dữ liệu"
 }
