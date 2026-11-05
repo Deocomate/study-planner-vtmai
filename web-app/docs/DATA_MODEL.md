@@ -1,6 +1,6 @@
 # Data model (current web app)
 
-The app is one static page (`dist/index.html`). Served by the Node backend (`server/`), the state `D` is stored in SQLite on the server (`GET/PUT /api/state`) and attached files go to `POST /api/files` / `/_blob/<id>`; localStorage then only keeps a copy. Opened without the backend (file, claude.ai artifact) it works as before, browser only:
+The app is one static page (`dist/index.html`). Served by the Node backend (`server/`), the state `D` is stored in SQLite on the server (`GET/PUT /api/state`) and attached files go to `POST /api/files` / `/_blob/<id>`; localStorage then only keeps a copy. Opened without the backend (as a local file) it works in the browser only:
 
 | Where | Key | What |
 |---|---|---|
@@ -8,10 +8,8 @@ The app is one static page (`dist/index.html`). Served by the Node backend (`ser
 | localStorage | `sp-lang` / `sp-theme` / `sp-role` | UI language (`en`/`vi`), light/dark, who is using it (`ben`/`shin`/`parent`). The colour follows the role: Ben `red`, Shin `blue`, parent/Mom `brown` (`PERSON_THEME` in `js2.js`; `sp-accent` is no longer used). |
 | sessionStorage | `sp-splash` | The welcome screen was already shown in this tab. |
 | localStorage | `sp-sent` | Which reminders were already shown. |
-| IndexedDB | db `study-planner-files`, store `f` | Attached files kept in this browser (Word files, or when uploads to claude.ai are not allowed). Key = `file.local`. |
-| claude.ai asset store | `/_blob/<id>` | Attached PDF/images uploaded through the artifact `assets` capability. Key = `file.asset`. |
-
-`database/schema.sql` is the same model as relational tables, for a real backend.
+| IndexedDB | db `study-planner-files`, store `f` | Attached files kept in this browser when there is no backend. Key = `file.local`; moved to the server automatically once the page is served by it. |
+| Server (`/data`) | `/_blob/<id>` | Attached files uploaded with `POST /api/files`. Key = `file.asset`. |
 
 ## State `D`
 
@@ -25,8 +23,7 @@ The app is one static page (`dist/index.html`). Served by the Node backend (`ser
   "adj": [{ "id", "child", "pts", "why", "at" }],          // manual point changes
   "rules": { "per5": 1, "ontime": 5, "approved": 10, "daily": 5, "ipadCap": 60 },
   "names": { "ben": "Ben", "shin": "Shin", "mom"?: "Mẹ" },
-  "customSubjects": ["…"], "customTeachers": ["…"],      // added with "+ Add new…" in the task form
-  "retimed": 3, "wiped1101": 1                            // one-time migrations already run
+  "customSubjects": ["…"], "customTeachers": ["…"]       // added with "+ Add new…" in the task form
 }
 ```
 

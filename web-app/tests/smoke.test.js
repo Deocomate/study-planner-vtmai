@@ -1,5 +1,5 @@
 // Smoke test for dist/index.html. Needs Playwright: npm i -D playwright && npx playwright install chromium
-// Run: node tests/smoke.test.js   (after python3 build.py)
+// Run: node tests/smoke.test.js   (after node build.mjs)
 const { chromium } = require('playwright');
 const path = require('path');
 const assert = require('assert');

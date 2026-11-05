@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build dist/index.html — same output as build.py, for machines without Python.
+// Build dist/index.html from src/ and i18n/vi.json.
 // Usage: node build.mjs   (no dependencies)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

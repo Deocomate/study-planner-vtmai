@@ -70,4 +70,3 @@ Volume này đảm bảo cơ sở dữ liệu SQLite (`/data/study_planner.sqlit
    - Hình ảnh giao diện thực tế đối chiếu chuẩn xác với 10 ảnh mẫu trong thư mục `web-app/docs/screenshots/`.
 3. Dữ liệu được lưu trên máy chủ và dùng chung giữa các máy.
 4. **Sao lưu / khôi phục:** vào `https://study.yourdomain.com/backup` → "Tải bản sao lưu (.zip)" để xuất, hoặc chọn file .zip rồi "Nhập dữ liệu" để khôi phục.
-5. Bản thử nghiệm backend cũ (`legacy-server-prototype/`) không còn được chạy trong Docker; mã nguồn vẫn giữ trong repo để tham khảo.

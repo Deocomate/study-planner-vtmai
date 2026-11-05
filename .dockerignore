@@ -3,8 +3,6 @@
 .gemini
 node_modules
 */node_modules
-legacy-server-prototype/data
-database/*.sqlite
 .env
 .env.*
 *.log
