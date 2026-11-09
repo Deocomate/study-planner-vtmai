@@ -66,7 +66,32 @@
   /* ---------- server sync: when the page is served by the Node backend (server/), the state lives in its database.
      Without a backend (/api/state missing) everything stays in this browser as before. ---------- */
   const SRV = { on: false, rev: 0, epoch: '', timer: null, busy: false, dirty: false };
-  const api = (path, opt = {}) => fetch(path, { credentials: 'same-origin', cache: 'no-store', ...opt });
+  const AUTH = { token: LS.get('sp-admin-token', ''), isAdmin: false, user: '', checked: false };
+  const api = (path, opt = {}) => {
+    const headers = Object.assign({}, opt.headers || {});
+    if (AUTH.token) {
+      headers['Authorization'] = `Bearer ${AUTH.token}`;
+      headers['X-Admin-Token'] = AUTH.token;
+    }
+    return fetch(path, { credentials: 'same-origin', cache: 'no-store', ...opt, headers });
+  };
+  const checkAuth = async () => {
+    if (!SRV.on) return;
+    try {
+      const r = await api('/api/auth/status');
+      if (r.ok) {
+        const j = await r.json();
+        AUTH.isAdmin = !!j.authenticated;
+        AUTH.user = j.user || '';
+        AUTH.checked = true;
+        if (!AUTH.isAdmin && UI.role === 'parent') {
+          UI.role = 'ben';
+          LS.set('sp-role', 'ben');
+          if (typeof render === 'function') render();
+        }
+      }
+    } catch (e) { /* offline */ }
+  };
   const adopt = (j) => { SRV.rev = j.rev; SRV.epoch = j.epoch; if (j.state) { D = j.state; ensure(); LS.set(KEY, JSON.stringify(D)); FIRST_RUN = false; } };
   const pushState = async () => { clearTimeout(SRV.timer); if (!SRV.on) return; if (SRV.busy) { SRV.timer = setTimeout(pushState, 300); return; }
     SRV.busy = true; SRV.dirty = false;
@@ -84,6 +109,7 @@
       const r = await api('/api/state', { signal: ac.signal }); clearTimeout(to); if (!r.ok) return; const j = await r.json(); if (!j || j.app !== 'study-planner') return;
       SRV.on = true; const local = D, fresh1 = !LS.get('sp-synced', '') && !FIRST_RUN; if (fresh1) LS.set(`${KEY}-before-sync`, JSON.stringify(local));
       adopt(j); LS.set('sp-synced', '1');
+      await checkAuth();
       if (!j.state || (fresh1 && local.tasks.length && !D.tasks.length)) { D = local; LS.set(KEY, JSON.stringify(D)); await pushState(); }   // empty server: upload what this browser has
       else if (fresh1) {   // first time this browser meets the server: keep its own tasks etc. instead of losing them
         let n = 0; for (const k of ['tasks', 'links', 'redeems', 'adj']) { const ids = new Set((D[k] || []).map((x) => x.id)); (local[k] || []).forEach((x) => { if (!ids.has(x.id)) { (D[k] = D[k] || []).push(x); n++; } }); }
@@ -94,7 +120,20 @@
     } catch (e) { /* no backend: keep data in this browser */ } })();
   const NAME = (c) => (c === 'parent' ? t('Parent') : c === MOM ? (D.names.mom || t('Mom')) : D.names[c] || c);
   const KIDS = ['ben', 'shin']; const MOM = 'mom'; const PEOPLE = [...KIDS, MOM];
-  const UI = { role: ['ben', 'shin', 'parent'].includes(LS.get('sp-role', 'parent')) ? LS.get('sp-role', 'parent') : 'parent', page: 'today', date: todayStr(), month: todayStr().slice(0, 7), who: 'all', perf: todayStr(), sheet: todayStr() };
+  let initialRole = 'ben';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const qRole = params.get('role') || params.get('user') || params.get('who');
+    if (['ben', 'shin', 'parent'].includes(qRole)) {
+      initialRole = qRole;
+    } else {
+      const saved = LS.get('sp-role', '');
+      if (['ben', 'shin'].includes(saved)) initialRole = saved;
+      else if (saved === 'parent' && AUTH.token) initialRole = 'parent';
+      else initialRole = 'ben';
+    }
+  } catch (e) { initialRole = 'ben'; }
+  const UI = { role: initialRole, page: 'today', date: todayStr(), month: todayStr().slice(0, 7), who: 'all', perf: todayStr(), sheet: todayStr() };
 
   /* ---------- tasks ---------- */
   const safeUrl = (v) => { v = String(v || '').trim(); if (!v) return ''; if (!/^https?:\/\//i.test(v)) { if (/^[\w-]+(\.[\w-]+)+(\/|$)/.test(v)) v = `https://${v}`; else return ''; } try { return new URL(v).href; } catch (e) { return ''; } };

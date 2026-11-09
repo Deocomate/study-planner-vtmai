@@ -1,21 +1,24 @@
 // Study Planner backend: serves the web app and stores its data in SQLite.
 //   GET  /api/health              – health check (no password)
-//   GET  /api/state               – the whole planner state  { app, state, rev, epoch, updatedAt }
-//   GET  /api/state/rev           – only { rev, epoch } (cheap polling)
-//   PUT  /api/state               – save { state, epoch }   (POST works too, for sendBeacon)
+//   GET  /api/auth/status         – check current admin auth status { authenticated, user }
+//   POST /api/auth/login          – login with { user, password } → { ok, token, user }
+//   POST /api/auth/logout         – log out admin session
+//   POST /api/auth/change-password– change admin password { currentPassword, newPassword, newUser }
+//   GET  /api/state               – the whole planner state  { app, state, rev, epoch, updatedAt } (public)
+//   GET  /api/state/rev           – only { rev, epoch } (cheap polling, public)
+//   PUT  /api/state               – save { state, epoch } (POST works too, for sendBeacon)
 //   POST /api/files               – upload an attached file (raw body, X-File-Name header) → { id, … }
-//   GET  /_blob/:id               – download an attached file
-//   DELETE /api/files/:id         – delete an attached file
-//   GET  /api/stats               – counts for the backup page
-//   GET  /api/export              – download everything as study-planner-backup_DD-MM-YYYY_HH-mm-ss.zip
-//   POST /api/import              – replace everything with an uploaded backup .zip
-//   GET  /api/backups[/:name]     – automatic backups kept on the server
-//   GET  /backup                  – backup page (export / import)
+//   GET  /_blob/:id               – download an attached file (public)
+//   DELETE /api/files/:id         – delete an attached file (admin)
+//   GET  /api/stats               – counts for the backup page (admin)
+//   GET  /api/export              – download everything as study-planner-backup_DD-MM-YYYY_HH-mm-ss.zip (admin)
+//   POST /api/import              – replace everything with an uploaded backup .zip (admin)
+//   GET  /api/backups[/:name]     – automatic backups kept on the server (admin)
+//   GET  /backup                  – backup & admin page
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync, createReadStream } from 'node:fs';
 import { join, dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { timingSafeEqual, createHash } from 'node:crypto';
 import { openStore } from './store.js';
 import { exportZip, importZip, makeBackupDir } from './backup.js';
 
@@ -33,7 +36,7 @@ const KEEP_BACKUPS = Number(env.KEEP_BACKUPS || 30);
 const APP_USER = env.APP_USER || '';
 const APP_PASSWORD = env.APP_PASSWORD || '';
 
-const store = openStore(DATA_DIR);
+const store = openStore(DATA_DIR, APP_USER || 'thanhmai', APP_PASSWORD || 'thanhmai1');
 const backups = makeBackupDir(DATA_DIR);
 
 const STATIC = {
@@ -53,7 +56,7 @@ const send = (res, code, body, headers = {}) => {
   res.writeHead(code, { 'Content-Type': typeof body === 'string' || Buffer.isBuffer(body) ? 'text/plain; charset=utf-8' : 'application/json; charset=utf-8', 'Content-Length': buf.length, ...headers });
   res.end(buf);
 };
-const json = (res, code, obj) => send(res, code, obj, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+const json = (res, code, obj, headers = {}) => send(res, code, obj, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers });
 
 class HttpError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 const readBody = (req, limit) => new Promise((ok, fail) => {
@@ -66,16 +69,41 @@ const readBody = (req, limit) => new Promise((ok, fail) => {
 });
 const readJson = async (req, limit) => { try { return JSON.parse((await readBody(req, limit)).toString('utf8')); } catch (e) { if (e instanceof HttpError) throw e; throw new HttpError(400, 'bad_json'); } };
 
-const sha = (s) => createHash('sha256').update(String(s)).digest();
+const extractToken = (req) => {
+  const auth = req.headers.authorization || '';
+  const bm = /^Bearer\s+(.+)$/i.exec(auth);
+  if (bm) return bm[1].trim();
+
+  const xToken = req.headers['x-admin-token'];
+  if (xToken) return String(xToken).trim();
+
+  const cookie = req.headers.cookie || '';
+  const cm = /(?:^|;\s*)sp_session=([A-Za-z0-9_-]+)/.exec(cookie);
+  if (cm) return cm[1];
+
+  return null;
+};
+
 const authorized = (req) => {
-  if (!APP_PASSWORD) return true;
-  const m = /^Basic (.+)$/i.exec(req.headers.authorization || '');
-  if (!m) return false;
-  const raw = Buffer.from(m[1], 'base64').toString('utf8'); const i = raw.indexOf(':');
-  const user = raw.slice(0, i), pass = raw.slice(i + 1);
-  const okPass = timingSafeEqual(sha(pass), sha(APP_PASSWORD));
-  const okUser = !APP_USER || timingSafeEqual(sha(user), sha(APP_USER));
-  return okPass && okUser;
+  const token = extractToken(req);
+  if (token && store.verifySession(token)) return true;
+
+  const auth = req.headers.authorization || '';
+  const bm = /^Basic\s+(.+)$/i.exec(auth);
+  if (bm) {
+    try {
+      const raw = Buffer.from(bm[1], 'base64').toString('utf8');
+      const i = raw.indexOf(':');
+      if (i !== -1) {
+        const user = raw.slice(0, i), pass = raw.slice(i + 1);
+        return store.verifyAdminPassword(pass, user);
+      }
+    } catch (e) {
+      return false;
+    }
+  }
+
+  return false;
 };
 
 const serveFile = (req, res, path, extra = {}) => {
@@ -95,8 +123,49 @@ async function handle(req, res) {
   res.setHeader('Referrer-Policy', 'same-origin');
 
   if (p === '/api/health') return json(res, 200, { ok: true });
-  if (!authorized(req)) return send(res, 401, 'Cần đăng nhập / Login required', { 'WWW-Authenticate': 'Basic realm="Study Planner", charset="UTF-8"' });
 
+  // Admin auth endpoints
+  if (p === '/api/auth/status' && M === 'GET') {
+    const isAuth = authorized(req);
+    return json(res, 200, { authenticated: isAuth, user: isAuth ? store.getAdminUser().username : null });
+  }
+
+  if (p === '/api/auth/login' && M === 'POST') {
+    const body = await readJson(req, 64 * 1024);
+    const user = (body && body.user) || '';
+    const pass = (body && body.password) || '';
+    if (!store.verifyAdminPassword(pass, user)) {
+      return json(res, 401, { ok: false, error: 'Tên đăng nhập hoặc mật khẩu không chính xác' });
+    }
+    const token = store.createSession();
+    const admin = store.getAdminUser();
+    res.setHeader('Set-Cookie', `sp_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 86400}`);
+    return json(res, 200, { ok: true, token, user: admin.username });
+  }
+
+  if (p === '/api/auth/logout' && M === 'POST') {
+    const token = extractToken(req);
+    if (token) store.deleteSession(token);
+    res.setHeader('Set-Cookie', 'sp_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+    return json(res, 200, { ok: true });
+  }
+
+  if (p === '/api/auth/change-password' && M === 'POST') {
+    if (!authorized(req)) return json(res, 401, { ok: false, error: 'Cần đăng nhập quản trị' });
+    const body = await readJson(req, 64 * 1024);
+    const { currentPassword, newPassword, newUser } = body || {};
+    if (!store.verifyAdminPassword(currentPassword)) {
+      return json(res, 400, { ok: false, error: 'Mật khẩu hiện tại không chính xác' });
+    }
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 4) {
+      return json(res, 400, { ok: false, error: 'Mật khẩu mới phải có ít nhất 4 ký tự' });
+    }
+    const targetUser = newUser && typeof newUser === 'string' && newUser.trim() ? newUser.trim() : store.getAdminUser().username;
+    const r = store.updateAdminCredentials(targetUser, newPassword.trim());
+    return json(res, 200, { ok: true, message: 'Đổi mật khẩu thành công', user: r.username });
+  }
+
+  // State endpoints (public for viewing by Ben & Shin, and saving updates)
   if (p === '/api/state' && M === 'GET') return json(res, 200, { app: 'study-planner', ...store.getState() });
   if (p === '/api/state/rev' && M === 'GET') { const m = store.meta(); return json(res, 200, { rev: m.rev, epoch: m.epoch }); }
   if (p === '/api/state' && (M === 'PUT' || M === 'POST')) {
@@ -106,6 +175,7 @@ async function handle(req, res) {
     return r.conflict ? json(res, 409, { app: 'study-planner', ...r }) : json(res, 200, r);
   }
 
+  // File uploads and downloads
   if (p === '/api/files' && M === 'POST') {
     const data = await readBody(req, MAX_UPLOAD);
     let name = 'file'; try { name = decodeURIComponent(String(req.headers['x-file-name'] || 'file')); } catch (e) { /* keep default */ }
@@ -114,7 +184,10 @@ async function handle(req, res) {
   }
   let m;
   if ((m = /^\/(?:_blob|api\/files)\/([A-Za-z0-9_-]{1,64})$/.exec(p))) {
-    if (M === 'DELETE') return json(res, 200, { ok: store.deleteFile(m[1]) });
+    if (M === 'DELETE') {
+      if (!authorized(req)) return json(res, 401, { error: 'unauthorized' });
+      return json(res, 200, { ok: store.deleteFile(m[1]) });
+    }
     if (M !== 'GET' && M !== 'HEAD') return send(res, 405, 'Method not allowed');
     const f = store.getFile(m[1]);
     if (!f) return send(res, 404, 'Not found');
@@ -124,23 +197,34 @@ async function handle(req, res) {
     return M === 'HEAD' ? res.end() : res.end(data);
   }
 
-  if (p === '/api/stats' && M === 'GET') return json(res, 200, store.stats());
+  // Admin-protected backup & system endpoints
+  if (p === '/api/stats' && M === 'GET') {
+    if (!authorized(req)) return json(res, 401, { error: 'unauthorized', message: 'Cần đăng nhập quản trị' });
+    return json(res, 200, store.stats());
+  }
   if (p === '/api/export' && M === 'GET') {
+    if (!authorized(req)) return send(res, 401, 'Cần đăng nhập quản trị');
     const { buffer, name } = exportZip(store);
     return send(res, 200, buffer, { 'Content-Type': 'application/zip', 'Content-Disposition': attachment(name), 'Cache-Control': 'no-store' });
   }
   if (p === '/api/import' && M === 'POST') {
+    if (!authorized(req)) return json(res, 401, { ok: false, error: 'Cần đăng nhập quản trị' });
     const buf = await readBody(req, MAX_IMPORT);
     let before = null;
     try { before = backups.save(store, 'before-import', KEEP_BACKUPS); } catch (e) { console.error('backup before import failed', e); }
     try { return json(res, 200, { ok: true, backupBefore: before, ...importZip(store, buf) }); } catch (e) { return json(res, 400, { ok: false, error: e.message }); }
   }
-  if (p === '/api/backups' && M === 'GET') return json(res, 200, backups.list());
+  if (p === '/api/backups' && M === 'GET') {
+    if (!authorized(req)) return json(res, 401, { error: 'unauthorized', message: 'Cần đăng nhập quản trị' });
+    return json(res, 200, backups.list());
+  }
   if ((m = /^\/api\/backups\/([\w.-]+\.zip)$/.exec(p)) && M === 'GET') {
+    if (!authorized(req)) return send(res, 401, 'Cần đăng nhập quản trị');
     const f = backups.path(m[1]);
     return f ? serveFile(req, res, f, { 'Content-Disposition': attachment(m[1]), 'Cache-Control': 'no-store' }) : send(res, 404, 'Not found');
   }
 
+  // Static pages and assets
   if (M !== 'GET' && M !== 'HEAD') return send(res, 404, 'Not found');
   if (STATIC[p]) return serveFile(req, res, STATIC[p]);
   for (const [prefix, dir] of Object.entries(DIRS)) {
@@ -170,7 +254,7 @@ const server = createServer((req, res) => {
 });
 server.requestTimeout = 10 * 60 * 1000;
 server.listen(PORT, HOST, () => {
-  console.log(`Study Planner on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}  data: ${DATA_DIR}${APP_PASSWORD ? '  (password on)' : ''}`);
+  console.log(`Study Planner on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}  data: ${DATA_DIR}`);
   if (!existsSync(STATIC['/'])) console.warn(`Missing ${STATIC['/']} – build the web app first (node web-app/build.mjs).`);
 });
 setTimeout(dailyBackup, 60 * 1000).unref();

@@ -38,8 +38,8 @@ Chuyển qua tab **Environment Variables** trong Coolify và thêm các biến c
 |---|---|---|---|
 | `APP_BASE_URL` | `https://study.yourdomain.com` | Khuyên dùng | Domain chính thức của ứng dụng (dùng tạo link trong email nhắc việc). |
 | `TZ` | `Asia/Ho_Chi_Minh` | Tuỳ chọn | Múi giờ dùng cho tên file sao lưu. |
-| `APP_PASSWORD` | `MatKhauGiaDinh2026` | **Nên đặt** | Mật khẩu mở trang web (trình duyệt hỏi khi vào). Để trống = ai có link cũng xem/sửa được dữ liệu. |
-| `APP_USER` | `me` | Tuỳ chọn | Tên đăng nhập; để trống = tên gì cũng được, chỉ cần đúng mật khẩu. |
+| `APP_PASSWORD` | `thanhmai1` | **Nên đặt** | Mật khẩu quản trị / Phụ huynh (dùng để đăng nhập vào chế độ Mẹ và đổi mật khẩu trong web). Ben và Shin xem tự do trên máy riêng mà không cần đăng nhập. |
+| `APP_USER` | `thanhmai` | Tuỳ chọn | Tên đăng nhập tài khoản quản trị (mặc định: `thanhmai`). Có thể đổi trong web sau khi đăng nhập. |
 | `MAX_UPLOAD_MB` | `20` | Tuỳ chọn | Giới hạn dung lượng mỗi file đính kèm (mặc định 20MB). |
 | `MAX_IMPORT_MB` | `1024` | Tuỳ chọn | Giới hạn dung lượng file .zip khi nhập dữ liệu. |
 | `KEEP_BACKUPS` | `30` | Tuỳ chọn | Số bản sao lưu tự động giữ lại trong `/data/backups`. |

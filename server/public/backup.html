@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sao lưu dữ liệu – Study Planner</title>
+<title>Quản trị & Sao lưu – Study Planner</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
   :root { --bg: #faf7f2; --card: #fff; --ink: #2b2420; --muted: #7a6f66; --line: #e8e0d6; --brand: #8b5e3c; --ok: #2e7d4f; --err: #b3261e; }
@@ -16,58 +16,206 @@
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-top: 16px; }
   .btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--brand); background: var(--brand); color: #fff; padding: 9px 16px; border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
   .btn.ghost { background: transparent; color: var(--brand); }
+  .btn.danger { background: var(--err); border-color: var(--err); }
   .btn:disabled { opacity: .5; cursor: default; }
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
   .stats div { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; } .stats b { display: block; font-size: 18px; }
   .msg { margin-top: 10px; font-weight: 600; } .msg.ok { color: var(--ok); } .msg.err { color: var(--err); }
-  ul { padding-left: 18px; margin: 8px 0 0; } li { margin: 2px 0; } a { color: var(--brand); }
+  ul { padding-left: 18px; margin: 8px 0 0; } li { margin: 2px 0; } a { color: var(--brand); text-decoration: none; } a:hover { text-decoration: underline; }
   input[type=file] { display: block; margin: 8px 0 12px; max-width: 100%; }
+  input[type=text], input[type=password] { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: var(--bg); color: var(--ink); margin: 4px 0 12px; }
+  label { font-size: 13px; font-weight: 600; color: var(--muted); display: block; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 </style>
 </head>
 <body>
 <main>
-  <a href="/" class="small">← Quay lại Study Planner</a>
-  <h1 style="margin-top:10px">Sao lưu dữ liệu</h1>
-  <p class="muted">Toàn bộ dữ liệu (bài tập, lịch học, phần thưởng, điểm, file đính kèm…) được lưu trên máy chủ. Trang này dùng để tải bản sao lưu về máy hoặc khôi phục từ bản sao lưu.</p>
+  <div class="top-bar">
+    <a href="/" class="small">← Quay lại Study Planner</a>
+    <span id="user-badge" class="small muted"></span>
+  </div>
+  <h1 style="margin-top:4px">Quản trị & Sao lưu dữ liệu</h1>
+  <p class="muted">Khu vực dành cho Phụ huynh / Quản trị để quản lý dữ liệu, sao lưu và đổi mật khẩu.</p>
 
-  <section class="card">
-    <h2>Dữ liệu hiện tại</h2>
-    <div class="stats"><div><span class="small muted">Bài tập</span><b id="s-tasks">–</b></div><div><span class="small muted">File đính kèm</span><b id="s-files">–</b></div><div><span class="small muted">Cập nhật lúc</span><b id="s-upd" style="font-size:14px">–</b></div></div>
-  </section>
+  <div id="login-sec" class="card" style="display:none">
+    <h2>🔒 Đăng nhập Quản trị</h2>
+    <p class="muted small">Vui lòng đăng nhập bằng app user và app password để tiếp tục.</p>
+    <form id="login-form">
+      <label>Tên đăng nhập (App user)</label>
+      <input type="text" id="l-user" value="thanhmai" required autocomplete="username">
+      <label>Mật khẩu (App password)</label>
+      <input type="password" id="l-pass" placeholder="Nhập mật khẩu" required autocomplete="current-password">
+      <button class="btn" type="submit">Đăng nhập</button>
+      <div class="msg err" id="l-msg"></div>
+    </form>
+  </div>
 
-  <section class="card">
-    <h2>⬇ Xuất dữ liệu (Export)</h2>
-    <p class="muted small">Tải về 1 file .zip chứa toàn bộ dữ liệu. Tên file có ngày giờ xuất, ví dụ <code>study-planner-backup_05-11-2026_14-30-00.zip</code>.</p>
-    <a class="btn" href="/api/export">Tải bản sao lưu (.zip)</a>
-  </section>
+  <div id="admin-sec" style="display:none">
+    <section class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <h2>Dữ liệu hiện tại</h2>
+        <button class="btn ghost small" id="btn-logout" style="padding:4px 10px">Đăng xuất</button>
+      </div>
+      <div class="stats">
+        <div><span class="small muted">Bài tập</span><b id="s-tasks">–</b></div>
+        <div><span class="small muted">File đính kèm</span><b id="s-files">–</b></div>
+        <div><span class="small muted">Cập nhật lúc</span><b id="s-upd" style="font-size:14px">–</b></div>
+      </div>
+    </section>
 
-  <section class="card">
-    <h2>⬆ Nhập dữ liệu (Import)</h2>
-    <p class="muted small">Chọn file .zip đã xuất trước đó. <b>Toàn bộ dữ liệu hiện tại sẽ được thay bằng dữ liệu trong file.</b> Máy chủ tự lưu lại 1 bản sao của dữ liệu cũ trước khi nhập, nên có thể khôi phục lại nếu cần.</p>
-    <input type="file" id="file" accept=".zip,application/zip">
-    <button class="btn" id="go" disabled>Nhập dữ liệu</button>
-    <div class="msg" id="msg" role="status"></div>
-  </section>
+    <section class="card">
+      <h2>🔐 Đổi mật khẩu Quản trị</h2>
+      <p class="muted small">Đổi tên đăng nhập (app user) và mật khẩu (app password) dùng để vào trang quản trị của Mẹ.</p>
+      <form id="pwd-form">
+        <label>Tên đăng nhập (App user)</label>
+        <input type="text" id="p-user" required autocomplete="username">
+        <label>Mật khẩu hiện tại</label>
+        <input type="password" id="p-cur" placeholder="Nhập mật khẩu đang dùng" required autocomplete="current-password">
+        <label>Mật khẩu mới</label>
+        <input type="password" id="p-new" placeholder="Tối thiểu 4 ký tự" required autocomplete="new-password">
+        <label>Xác nhận mật khẩu mới</label>
+        <input type="password" id="p-confirm" placeholder="Nhập lại mật khẩu mới" required autocomplete="new-password">
+        <button class="btn" type="submit">Lưu thay đổi mật khẩu</button>
+        <div class="msg" id="pwd-msg"></div>
+      </form>
+    </section>
 
-  <section class="card">
-    <h2>🗂 Bản sao lưu tự động trên máy chủ</h2>
-    <p class="muted small">Máy chủ tự tạo 1 bản mỗi ngày và 1 bản trước mỗi lần nhập dữ liệu.</p>
-    <ul id="list"><li class="muted">Đang tải…</li></ul>
-  </section>
+    <section class="card">
+      <h2>⬇ Xuất dữ liệu (Export)</h2>
+      <p class="muted small">Tải về 1 file .zip chứa toàn bộ dữ liệu. Tên file có ngày giờ xuất, ví dụ <code>study-planner-backup_DD-MM-YYYY_HH-mm-ss.zip</code>.</p>
+      <a class="btn" href="/api/export">Tải bản sao lưu (.zip)</a>
+    </section>
+
+    <section class="card">
+      <h2>⬆ Nhập dữ liệu (Import)</h2>
+      <p class="muted small">Chọn file .zip đã xuất trước đó. <b>Toàn bộ dữ liệu hiện tại sẽ được thay bằng dữ liệu trong file.</b> Máy chủ tự lưu lại 1 bản sao của dữ liệu cũ trước khi nhập.</p>
+      <input type="file" id="file" accept=".zip,application/zip">
+      <button class="btn" id="go" disabled>Nhập dữ liệu</button>
+      <div class="msg" id="msg" role="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>🗂 Bản sao lưu tự động trên máy chủ</h2>
+      <p class="muted small">Máy chủ tự tạo 1 bản mỗi ngày và 1 bản trước mỗi lần nhập dữ liệu.</p>
+      <ul id="list"><li class="muted">Đang tải…</li></ul>
+    </section>
+  </div>
 </main>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
   const fmtTime = (s) => (s ? new Date(s).toLocaleString('vi-VN') : '–');
   const fmtSize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
-  const load = async () => {
-    try { const s = await (await fetch('/api/stats', { cache: 'no-store' })).json(); $('s-tasks').textContent = s.tasks; $('s-files').textContent = s.files; $('s-upd').textContent = fmtTime(s.updatedAt); } catch (e) { /* offline */ }
+
+  const showLogin = () => {
+    $('login-sec').style.display = 'block';
+    $('admin-sec').style.display = 'none';
+    $('user-badge').textContent = '';
+  };
+
+  const showAdmin = (user) => {
+    $('login-sec').style.display = 'none';
+    $('admin-sec').style.display = 'block';
+    $('user-badge').textContent = 'Đã đăng nhập: ' + (user || 'Quản trị');
+    if ($('p-user') && user) $('p-user').value = user;
+    load();
+  };
+
+  const checkStatus = async () => {
     try {
-      const l = await (await fetch('/api/backups', { cache: 'no-store' })).json(); const ul = $('list'); ul.textContent = '';
+      const r = await fetch('/api/auth/status', { cache: 'no-store' });
+      const j = await r.json();
+      if (j.authenticated) showAdmin(j.user);
+      else showLogin();
+    } catch (e) {
+      showLogin();
+    }
+  };
+
+  const load = async () => {
+    try {
+      const s = await (await fetch('/api/stats', { cache: 'no-store' })).json();
+      if (s.error === 'unauthorized') { showLogin(); return; }
+      $('s-tasks').textContent = s.tasks ?? '–';
+      $('s-files').textContent = s.files ?? '–';
+      $('s-upd').textContent = fmtTime(s.updatedAt);
+    } catch (e) { /* offline */ }
+    try {
+      const l = await (await fetch('/api/backups', { cache: 'no-store' })).json();
+      const ul = $('list'); ul.textContent = '';
       if (!l.length) { const li = document.createElement('li'); li.className = 'muted'; li.textContent = 'Chưa có bản nào.'; ul.append(li); }
-      l.forEach((f) => { const li = document.createElement('li'); const a = document.createElement('a'); a.href = '/api/backups/' + encodeURIComponent(f.name); a.textContent = f.name; li.append(a, ` · ${fmtSize(f.size)}`); ul.append(li); });
+      l.forEach((f) => {
+        const li = document.createElement('li');
+        const a = document.createElement('a'); a.href = '/api/backups/' + encodeURIComponent(f.name); a.textContent = f.name;
+        li.append(a, ` · ${fmtSize(f.size)}`); ul.append(li);
+      });
     } catch (e) { /* offline */ }
   };
+
+  $('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const user = $('l-user').value.trim();
+    const password = $('l-pass').value;
+    $('l-msg').textContent = 'Đang kiểm tra…';
+    try {
+      const r = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user, password })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || 'Đăng nhập không thành công');
+      $('l-msg').textContent = '';
+      showAdmin(j.user);
+    } catch (err) {
+      $('l-msg').textContent = err.message || 'Lỗi đăng nhập';
+    }
+  });
+
+  $('btn-logout').addEventListener('click', async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    showLogin();
+  });
+
+  $('pwd-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const newUser = $('p-user').value.trim();
+    const currentPassword = $('p-cur').value;
+    const newPassword = $('p-new').value;
+    const confirm = $('p-confirm').value;
+    const msg = $('pwd-msg');
+    msg.className = 'msg';
+    if (newPassword !== confirm) {
+      msg.textContent = 'Mật khẩu mới và xác nhận mật khẩu không khớp.';
+      msg.className = 'msg err';
+      return;
+    }
+    if (newPassword.length < 4) {
+      msg.textContent = 'Mật khẩu mới phải có ít nhất 4 ký tự.';
+      msg.className = 'msg err';
+      return;
+    }
+    msg.textContent = 'Đang cập nhật…';
+    try {
+      const r = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword, newUser })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || 'Không đổi được mật khẩu.');
+      msg.textContent = '✅ Đổi mật khẩu thành công!';
+      msg.className = 'msg ok';
+      $('p-cur').value = '';
+      $('p-new').value = '';
+      $('p-confirm').value = '';
+      if (j.user) $('user-badge').textContent = 'Đã đăng nhập: ' + j.user;
+    } catch (err) {
+      msg.textContent = err.message || 'Lỗi khi đổi mật khẩu.';
+      msg.className = 'msg err';
+    }
+  });
+
   const file = $('file'), go = $('go'), msg = $('msg');
   const say = (text, cls) => { msg.textContent = text; msg.className = 'msg ' + (cls || ''); };
   file.addEventListener('change', () => { go.disabled = !file.files.length; say(''); });
@@ -84,7 +232,8 @@
       file.value = ''; load();
     } catch (e) { say(e.message || 'Không nhập được dữ liệu.', 'err'); go.disabled = false; }
   });
-  load();
+
+  checkStatus();
 })();
 </script>
 </body>

@@ -141,3 +141,127 @@
       h('p', { class: 'small muted', style: 'margin-top:10px' }, t('Classes show on the Today page and are checked for overlaps when you add a task.')),
       h('div', { class: 'card pad', style: 'margin-top:24px' }, h('h3', { style: 'font-size:1rem' }, t('Start over')), h('p', { class: 'small soft', style: 'margin:4px 0 12px' }, t('Delete every task, point and request stored in this browser. The timetable and rewards go back to the defaults.')), h('button', { class: 'btn danger', onclick: () => confirmBox(t('Clear all data?'), t('This deletes every task, point and request in this browser.'), 'Delete everything', () => { D = fresh(); ensure(); rerender(); toast(t('All data cleared.')); }, true) }, t('Clear all data')))];
   };
+
+  /* ---------- Admin & Password Management (Parent only) ---------- */
+  pages.admin = () => {
+    if (UI.role !== 'parent') {
+      return [pageHead(t('Admin'), t('Only parents can access this page.'))];
+    }
+
+    const fUser = inp({ value: AUTH.user || 'thanhmai', autocomplete: 'username' });
+    const fCur = inp({ type: 'password', placeholder: t('Current password'), autocomplete: 'current-password' });
+    const fNew = inp({ type: 'password', placeholder: t('New password (min 4 chars)'), autocomplete: 'new-password' });
+    const fConfirm = inp({ type: 'password', placeholder: t('Confirm new password'), autocomplete: 'new-password' });
+    const pwdMsg = h('div', { class: 'msg', role: 'status', style: 'margin-top:10px;font-weight:600' });
+
+    const btnChangePwd = h('button', {
+      type: 'button',
+      class: 'btn primary',
+      onclick: async () => {
+        pwdMsg.className = 'msg';
+        pwdMsg.textContent = '';
+        if (!fCur.value) {
+          pwdMsg.textContent = t('Please enter the current password.');
+          pwdMsg.style.color = 'var(--c-red,#d9534f)';
+          return;
+        }
+        if (fNew.value.length < 4) {
+          pwdMsg.textContent = t('Password must be at least 4 characters.');
+          pwdMsg.style.color = 'var(--c-red,#d9534f)';
+          return;
+        }
+        if (fNew.value !== fConfirm.value) {
+          pwdMsg.textContent = t('Passwords do not match.');
+          pwdMsg.style.color = 'var(--c-red,#d9534f)';
+          return;
+        }
+        pwdMsg.textContent = t('Updating password…');
+        pwdMsg.style.color = 'var(--ink)';
+        try {
+          const r = await api('/api/auth/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              currentPassword: fCur.value,
+              newPassword: fNew.value,
+              newUser: fUser.value.trim()
+            })
+          });
+          const j = await r.json();
+          if (!r.ok || !j.ok) {
+            pwdMsg.textContent = j.error || t('Could not change password.');
+            pwdMsg.style.color = 'var(--c-red,#d9534f)';
+            return;
+          }
+          pwdMsg.textContent = '✅ ' + t('Password changed successfully!');
+          pwdMsg.style.color = 'var(--c-ok,#2e7d4f)';
+          fCur.value = '';
+          fNew.value = '';
+          fConfirm.value = '';
+          if (j.user) AUTH.user = j.user;
+          toast(t('Password changed successfully!'));
+        } catch (e) {
+          pwdMsg.textContent = t('Could not change password.');
+          pwdMsg.style.color = 'var(--c-red,#d9534f)';
+        }
+      }
+    }, `💾 ${t('Update password')}`);
+
+    const pwdCard = h('div', { class: 'card pad', style: 'margin-top:16px' },
+      h('h3', { style: 'font-size:1.1rem;margin-bottom:6px' }, `🔐 ${t('Change Admin Password')}`),
+      h('p', { class: 'small muted', style: 'margin-bottom:14px' }, t('Change the app user and app password used to access parent and admin areas.')),
+      h('div', { class: 'fgrid' },
+        field(t('App user'), fUser),
+        field(t('Current password'), fCur),
+        field(t('New password'), fNew),
+        field(t('Confirm new password'), fConfirm)
+      ),
+      h('div', { style: 'margin-top:14px' }, btnChangePwd),
+      pwdMsg
+    );
+
+    const backupCard = h('div', { class: 'card pad', style: 'margin-top:16px' },
+      h('h3', { style: 'font-size:1.1rem;margin-bottom:6px' }, `💾 ${t('Database & Backup')}`),
+      h('p', { class: 'small muted', style: 'margin-bottom:14px' }, t('Export all tasks, timetable, rewards and attached files into a .zip file, or restore from a previous backup.')),
+      h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap' },
+        h('a', { class: 'btn primary', href: '/api/export', target: '_blank' }, `⬇ ${t('Export backup (.zip)')}`),
+        h('a', { class: 'btn secondary', href: '/backup' }, `🗂 ${t('Open full backup page')}`)
+      )
+    );
+
+    const statsDiv = h('div', { class: 'stats', style: 'margin-top:10px' },
+      h('div', null, h('span', { class: 'small muted' }, t('Tasks')), h('b', { id: 'adm-st-tasks' }, '–')),
+      h('div', null, h('span', { class: 'small muted' }, t('Attached files')), h('b', { id: 'adm-st-files' }, '–')),
+      h('div', null, h('span', { class: 'small muted' }, t('Last updated')), h('b', { id: 'adm-st-upd', style: 'font-size:13px' }, '–'))
+    );
+    const statsCard = h('div', { class: 'card pad', style: 'margin-top:16px' },
+      h('h3', { style: 'font-size:1.1rem;margin-bottom:6px' }, `📊 ${t('System status')}`),
+      statsDiv
+    );
+
+    const logoutCard = h('div', { class: 'card pad', style: 'margin-top:16px;border-left:4px solid var(--c-red,#d9534f)' },
+      h('h3', { style: 'font-size:1.1rem;margin-bottom:6px' }, `🚪 ${t('Logout')}`),
+      h('p', { class: 'small muted', style: 'margin-bottom:14px' }, t('Log out of the parent account so children using this device cannot access admin controls.')),
+      h('button', { class: 'btn danger', onclick: logoutAdmin }, `🚪 ${t('Log out of parent account')}`)
+    );
+
+    setTimeout(async () => {
+      try {
+        const s = await (await api('/api/stats')).json();
+        const elT = document.getElementById('adm-st-tasks');
+        const elF = document.getElementById('adm-st-files');
+        const elU = document.getElementById('adm-st-upd');
+        if (elT) elT.textContent = s.tasks ?? '–';
+        if (elF) elF.textContent = s.files ?? '–';
+        if (elU) elU.textContent = s.updatedAt ? new Date(s.updatedAt).toLocaleString(LANG === 'vi' ? 'vi-VN' : 'en-US') : '–';
+      } catch (e) {}
+    }, 50);
+
+    return [
+      pageHead(t('Admin & Settings'), t('Manage password, account, data backup, and system status')),
+      pwdCard,
+      backupCard,
+      statsCard,
+      logoutCard
+    ];
+  };

@@ -229,7 +229,68 @@
   };
 
   /* ---------- header, nav, decorations ---------- */
-  const NAV = () => (UI.role === 'parent' ? [['today', t('Today')], ['month', t('Month')], ['perf', t('Performance')], ['rewards', t('Rewards')], ['import', t('Import')], ['students', t('Students')], ['resources', t('Resources')]] : [['today', t('Today')], ['month', t('Month')], ['rewards', t('Rewards')], ['import', t('Import')], ['resources', t('Resources')]]);
+  const showLoginModal = (onSuccess) => {
+    const fUser = inp({ value: AUTH.user || 'thanhmai', autocomplete: 'username' });
+    const fPass = inp({ type: 'password', placeholder: t('Enter password'), autocomplete: 'current-password' });
+    const err = h('div', { class: 'err', role: 'alert', style: 'color:var(--c-red,#d9534f);font-size:13px;margin-top:6px' });
+    let closeFn = null;
+    const submit = async () => {
+      const user = fUser.value.trim();
+      const password = fPass.value;
+      if (!password) { err.textContent = t('Please enter password.'); return; }
+      err.textContent = t('Logging in…');
+      try {
+        const r = await api('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user, password })
+        });
+        const j = await r.json();
+        if (!r.ok || !j.ok) {
+          err.textContent = j.error || t('Incorrect username or password.');
+          return;
+        }
+        AUTH.token = j.token;
+        AUTH.isAdmin = true;
+        AUTH.user = j.user;
+        LS.set('sp-admin-token', j.token);
+        if (closeFn) closeFn();
+        toast(t('Logged in successfully!'));
+        if (onSuccess) onSuccess();
+        render();
+      } catch (e) {
+        err.textContent = t('Incorrect username or password.');
+      }
+    };
+    fPass.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    fUser.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    const box = h('div', { class: 'fgrid' },
+      h('p', { class: 'soft small', style: 'margin-bottom:8px' }, t('Enter your app user and app password to continue.')),
+      field(t('App user'), fUser),
+      field(t('App password'), fPass),
+      err
+    );
+    closeFn = modal(t('Parent / Admin Login'), box, [
+      { label: t('Cancel') },
+      { label: t('Login'), primary: true, fn: () => { submit(); return false; } }
+    ]);
+    setTimeout(() => fPass.focus(), 80);
+  };
+
+  const logoutAdmin = async () => {
+    try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+    AUTH.token = '';
+    AUTH.isAdmin = false;
+    AUTH.user = '';
+    LS.set('sp-admin-token', '');
+    UI.role = 'ben';
+    LS.set('sp-role', 'ben');
+    UI.page = 'today';
+    render();
+    toast(t('Logged out.'));
+  };
+
+  const NAV = () => (UI.role === 'parent' ? [['today', t('Today')], ['month', t('Month')], ['perf', t('Performance')], ['rewards', t('Rewards')], ['import', t('Import')], ['students', t('Students')], ['resources', t('Resources')], ['admin', t('Admin')]] : [['today', t('Today')], ['month', t('Month')], ['rewards', t('Rewards')], ['import', t('Import')], ['resources', t('Resources')]]);
   const unfinishedToday = () => tasksOn(todayStr()).filter((k) => k.status !== 'done').length;
   const header = () => { const H = holidayOn(todayStr());
     const nav = h('nav', { class: 'nav', 'aria-label': t('Main menu') }, NAV().map(([k, l]) => h('button', { type: 'button', 'aria-current': UI.page === k ? 'page' : null, onclick: () => { UI.page = k; if (k === 'today') UI.date = UI.date; render(); window.scrollTo(0, 0); } }, l, k === 'today' && unfinishedToday() ? h('span', { class: 'cnt', 'aria-label': t('{0} not finished today', unfinishedToday()) }, unfinishedToday()) : null)));
@@ -240,8 +301,32 @@
         h('button', { class: 'iconbtn', type: 'button', onclick: () => { LANG = LANG === 'vi' ? 'en' : 'vi'; LS.set('sp-lang', LANG); render(); }, 'aria-label': t('Language'), title: t('Language') }, LANG === 'vi' ? 'VI' : 'EN'),
         h('button', { class: 'iconbtn', type: 'button', onclick: askNotif, 'aria-label': t('Reminders'), title: t('Reminders') }, notifOK() ? '🔔' : '🔕'),
         h('button', { class: 'iconbtn', type: 'button', onclick: themeDialog, 'aria-label': t('Appearance'), title: t('Appearance') }, '🎨'),
+        SRV.on && UI.role === 'parent' ? h('button', { class: 'iconbtn', type: 'button', onclick: () => { UI.page = 'admin'; render(); }, 'aria-label': t('Admin'), title: t('Admin') }, '⚙️') : null,
         SRV.on && UI.role === 'parent' ? h('a', { class: 'iconbtn', href: '/backup', 'aria-label': t('Back up & restore data'), title: t('Back up & restore data') }, '💾') : null,
-        h('div', { class: 'who', role: 'group', 'aria-label': t('Who is using the planner?') }, ['ben', 'shin', 'parent'].map((r) => h('button', { type: 'button', 'aria-pressed': String(UI.role === r), onclick: () => { const changed = UI.role !== r; UI.role = r; LS.set('sp-role', r); if (!NAV().some(([k]) => k === UI.page)) UI.page = 'today'; render(); if (changed) showSplash(); } }, r === 'parent' ? NAME(MOM) : NAME(r))))),
+        SRV.on && UI.role === 'parent' ? h('button', { class: 'iconbtn', type: 'button', onclick: logoutAdmin, 'aria-label': t('Logout'), title: t('Logout') }, '🚪') : null,
+        h('div', { class: 'who', role: 'group', 'aria-label': t('Who is using the planner?') }, ['ben', 'shin', 'parent'].map((r) => h('button', {
+          type: 'button',
+          'aria-pressed': String(UI.role === r),
+          onclick: () => {
+            if (r === 'parent' && SRV.on && !AUTH.isAdmin) {
+              showLoginModal(() => {
+                const changed = UI.role !== 'parent';
+                UI.role = 'parent';
+                LS.set('sp-role', 'parent');
+                if (!NAV().some(([k]) => k === UI.page)) UI.page = 'today';
+                render();
+                if (changed) showSplash();
+              });
+              return;
+            }
+            const changed = UI.role !== r;
+            UI.role = r;
+            LS.set('sp-role', r);
+            if (!NAV().some(([k]) => k === UI.page)) UI.page = 'today';
+            render();
+            if (changed) showSplash();
+          }
+        }, r === 'parent' ? (SRV.on && !AUTH.isAdmin ? `🔒 ${NAME(MOM)}` : NAME(MOM)) : NAME(r))))),
       H ? h('span', { class: 'hold l', 'aria-hidden': 'true' }, H.icons[0]) : null,
       H ? h('div', { class: 'hold r', role: 'img', 'aria-label': H.left > 0 ? t('{0} day(s) until {1}', H.left, H.name) : H.name }, h('div', { class: 'htag' }, H.left > 0 ? [h('b', null, H.left), h('span', null, H.left === 1 ? t('day left') : t('days left'))] : h('span', null, t('Have fun!')), h('i', null, H.icons[1]))) : null);
     return el; };

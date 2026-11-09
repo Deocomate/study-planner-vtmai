@@ -23,7 +23,7 @@
 - Lần đầu một trình duyệt kết nối server: nếu server còn trống thì dữ liệu của trình duyệt đó được đưa lên; nếu server đã có dữ liệu thì các bài tập riêng của trình duyệt được gộp vào (không mất). File đính kèm cũ trong IndexedDB tự được chuyển lên server.
 - **Sao lưu:** trang `/backup` (nút 💾 trên thanh trên cùng khi đang chọn Mẹ) có nút Xuất dữ liệu → tải `study-planner-backup_DD-MM-YYYY_HH-mm-ss.zip` (gồm `manifest.json`, `data.json`, `files.json`, `files/<id>/<tên file>`), và Nhập dữ liệu từ file zip đó. Server tự lưu 1 bản trước mỗi lần nhập và 1 bản mỗi ngày trong `/data/backups`.
 - API: `GET/PUT /api/state`, `POST /api/files`, `GET /_blob/:id`, `GET /api/export`, `POST /api/import`, `GET /api/backups` (xem đầu file `server/index.js`).
-- Bảo vệ bằng mật khẩu: đặt biến `APP_PASSWORD` (và tuỳ chọn `APP_USER`) → trình duyệt hỏi mật khẩu trước khi mở trang. Để trống thì ai có link cũng vào được.
+- Bảo vệ bằng mật khẩu & quyền riêng tư: Ben và Shin có thể tự xem lịch học trên máy riêng mà không cần đăng nhập. Khi muốn chuyển sang chế độ Phụ huynh (Mẹ) hoặc truy cập phần Quản trị, người dùng đăng nhập bằng `app user` và `app password` (khởi tạo ban đầu từ `APP_USER` và `APP_PASSWORD` trong `.env.server`). Sau khi đăng nhập, phụ huynh có phần quản trị riêng (tab Quản trị hoặc trang `/backup`) để đổi mật khẩu và xuất/nhập sao lưu bất cứ lúc nào.
 - Không có khoá API hay mật khẩu nào trong repo. Cấu hình máy chủ nằm trong `.env.server` (không commit); `.env.example` là mẫu.
 
 ## Tính năng chính (bản web-app)
