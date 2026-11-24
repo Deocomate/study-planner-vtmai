@@ -225,6 +225,14 @@
       pwdMsg
     );
 
+    const kidPinCard = h('div', { class: 'card pad', style: 'margin-top:16px' },
+      h('h3', { style: 'font-size:1.1rem;margin-bottom:6px' }, `🔑 ${t("Children's passwords")}`),
+      h('p', { class: 'small muted', style: 'margin-bottom:14px' }, t('Each child types their password to open their planner. Use 4 to 8 digits.')),
+      h('div', { class: 'fgrid' }, KIDS.map((c) => { const fi = inp({ inputmode: 'numeric', maxlength: 8, placeholder: t('New password'), autocomplete: 'off' }); const msg = h('span', { class: 'small' });
+        const saveP = async () => { msg.textContent = ''; try { const r = await api('/api/auth/kid-pin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kid: c, pin: fi.value.trim() }) }); const j = await r.json().catch(() => ({}));
+          if (!r.ok || !j.ok) { msg.textContent = j.error || t('Could not save.'); msg.style.color = 'var(--c-red,#d9534f)'; return; } fi.value = ''; msg.textContent = '✅'; msg.style.color = ''; toast(t('Saved.')); } catch (e) { msg.textContent = t('Could not save.'); msg.style.color = 'var(--c-red,#d9534f)'; } };
+        return h('div', { class: 'f' }, h('span', { class: 'label' }, NAME(c)), h('div', { class: 'row', style: 'gap:8px' }, fi, h('button', { type: 'button', class: 'btn secondary sm', onclick: saveP }, t('Save')), msg)); })));
+
     const backupCard = h('div', { class: 'card pad', style: 'margin-top:16px' },
       h('h3', { style: 'font-size:1.1rem;margin-bottom:6px' }, `💾 ${t('Database & Backup')}`),
       h('p', { class: 'small muted', style: 'margin-bottom:14px' }, t('Export all tasks, timetable, rewards and attached files into a .zip file, or restore from a previous backup.')),
@@ -264,6 +272,7 @@
 
     return [
       pageHead(t('Admin & Settings'), t('Manage password, account, data backup, and system status')),
+      kidPinCard,
       pwdCard,
       backupCard,
       statsCard,

@@ -32,6 +32,12 @@ export function openStore(dataDir, defaultUser = 'thanhmai', defaultPassword = '
       salt TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS kid_pins (
+      kid TEXT PRIMARY KEY,
+      pin_hash TEXT NOT NULL,
+      salt TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS sessions (
       token TEXT PRIMARY KEY,
       created_at TEXT NOT NULL,
@@ -55,6 +61,9 @@ export function openStore(dataDir, defaultUser = 'thanhmai', defaultPassword = '
     getAdmin: db.prepare('SELECT username, password_hash, salt, updated_at FROM admin_auth WHERE id = 1'),
     upsertAdmin: db.prepare(`INSERT INTO admin_auth (id, username, password_hash, salt, updated_at) VALUES (1, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET username = excluded.username, password_hash = excluded.password_hash, salt = excluded.salt, updated_at = excluded.updated_at`),
+    getKidPin: db.prepare('SELECT kid, pin_hash, salt FROM kid_pins WHERE kid = ?'),
+    upsertKidPin: db.prepare(`INSERT INTO kid_pins (kid, pin_hash, salt, updated_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(kid) DO UPDATE SET pin_hash = excluded.pin_hash, salt = excluded.salt, updated_at = excluded.updated_at`),
     getSession: db.prepare('SELECT token, created_at, expires_at FROM sessions WHERE token = ?'),
     addSession: db.prepare('INSERT INTO sessions (token, created_at, expires_at) VALUES (?, ?, ?)'),
     delSession: db.prepare('DELETE FROM sessions WHERE token = ?'),
@@ -74,6 +83,10 @@ export function openStore(dataDir, defaultUser = 'thanhmai', defaultPassword = '
     }
   };
   initAuth(defaultUser, defaultPassword);
+  // Each child opens their own planner with a PIN (defaults below, changed by a parent on the Admin page).
+  const KID_PINS = { ben: '5555', shin: '8888' };
+  const setKidPin = (kid, pin) => { const salt = randomBytes(16).toString('hex'); q.upsertKidPin.run(kid, hashPassword(pin, salt), salt, now()); };
+  for (const [kid, pin] of Object.entries(KID_PINS)) if (!q.getKidPin.get(kid)) setKidPin(kid, pin);
 
   return {
     meta,
@@ -112,6 +125,14 @@ export function openStore(dataDir, defaultUser = 'thanhmai', defaultPassword = '
         return next;
       });
     },
+    // Child PINs
+    isKid: (kid) => Object.hasOwn(KID_PINS, kid),
+    verifyKidPin(kid, pin) {
+      const r = q.getKidPin.get(String(kid || ''));
+      if (!r || typeof pin !== 'string' || !pin) return false;
+      return timingSafeEqual(Buffer.from(hashPassword(pin, r.salt), 'hex'), Buffer.from(r.pin_hash, 'hex'));
+    },
+    setKidPin(kid, pin) { if (!Object.hasOwn(KID_PINS, kid)) return false; setKidPin(kid, String(pin)); return true; },
     // Admin auth methods
     getAdminUser() {
       const r = q.getAdmin.get();

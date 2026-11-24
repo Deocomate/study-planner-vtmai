@@ -440,5 +440,15 @@
   "Event": "Sự kiện",
   "Events": "Sự kiện",
   "EVENTS": "SỰ KIỆN",
-  "This is an event (exam, school trip…), not a task": "Đây là sự kiện (thi, dã ngoại…), không phải bài tập"
+  "This is an event (exam, school trip…), not a task": "Đây là sự kiện (thi, dã ngoại…), không phải bài tập",
+  "Please enter the password.": "Hãy nhập mật khẩu.",
+  "Too many wrong tries. Wait 1 minute and try again.": "Sai quá nhiều lần. Đợi 1 phút rồi thử lại.",
+  "Wrong password. Try again.": "Sai mật khẩu. Thử lại nhé.",
+  "Could not check the password. Check the internet and try again.": "Không kiểm tra được mật khẩu. Kiểm tra mạng rồi thử lại.",
+  "Who is studying?": "Ai đang học?",
+  "Password": "Mật khẩu",
+  "Open": "Vào",
+  "Children's passwords": "Mật khẩu của các con",
+  "Each child types their password to open their planner. Use 4 to 8 digits.": "Mỗi bạn nhập mật khẩu riêng để vào trang của mình. Dùng 4 đến 8 chữ số.",
+  "Could not save.": "Không lưu được."
 }

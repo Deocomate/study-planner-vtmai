@@ -4,6 +4,8 @@
 //   POST /api/auth/login          – login with { user, password } → { ok, token, user }
 //   POST /api/auth/logout         – log out admin session
 //   POST /api/auth/change-password– change admin password { currentPassword, newPassword, newUser }
+//   POST /api/auth/kid            – check a child's PIN { kid, pin } → { ok } (a few wrong tries pause it)
+//   POST /api/auth/kid-pin        – set a child's PIN { kid, pin } (admin)
 //   GET  /api/state               – the whole planner state  { app, state, rev, epoch, updatedAt } (public)
 //   GET  /api/state/rev           – only { rev, epoch } (cheap polling, public)
 //   PUT  /api/state               – save { state, epoch } (POST works too, for sendBeacon)
@@ -38,6 +40,7 @@ const APP_PASSWORD = env.APP_PASSWORD || '';
 
 const store = openStore(DATA_DIR, APP_USER || 'thanhmai', APP_PASSWORD || 'thanhmai1');
 const backups = makeBackupDir(DATA_DIR);
+const pinFails = new Map();   // ip -> { n: wrong PINs in a row, until: paused until (ms) }
 
 const STATIC = {
   '/': join(WEB_DIR, 'dist', 'index.html'),
@@ -163,6 +166,27 @@ async function handle(req, res) {
     const targetUser = newUser && typeof newUser === 'string' && newUser.trim() ? newUser.trim() : store.getAdminUser().username;
     const r = store.updateAdminCredentials(targetUser, newPassword.trim());
     return json(res, 200, { ok: true, message: 'Đổi mật khẩu thành công', user: r.username });
+  }
+
+  if (p === '/api/auth/kid' && M === 'POST') {
+    const ip = req.socket.remoteAddress || '';
+    const f = pinFails.get(ip);
+    if (f && f.until > Date.now()) return json(res, 429, { ok: false, error: 'Sai quá nhiều lần, đợi 1 phút rồi thử lại' });
+    const body = await readJson(req, 4 * 1024);
+    if (store.verifyKidPin(body && body.kid, String((body && body.pin) || ''))) { pinFails.delete(ip); return json(res, 200, { ok: true }); }
+    const n = (f && f.until <= Date.now() && f.n >= 5 ? 0 : (f ? f.n : 0)) + 1;
+    pinFails.set(ip, { n, until: n >= 5 ? Date.now() + 60 * 1000 : 0 });
+    return json(res, 401, { ok: false, error: 'Sai mật khẩu' });
+  }
+
+  if (p === '/api/auth/kid-pin' && M === 'POST') {
+    if (!authorized(req)) return json(res, 401, { ok: false, error: 'Cần đăng nhập quản trị' });
+    const body = await readJson(req, 4 * 1024);
+    const kid = body && body.kid, pin = String((body && body.pin) || '').trim();
+    if (!store.isKid(kid)) return json(res, 400, { ok: false, error: 'Không rõ là bạn nào' });
+    if (!/^\d{4,8}$/.test(pin)) return json(res, 400, { ok: false, error: 'Mật khẩu phải là 4 đến 8 chữ số' });
+    store.setKidPin(kid, pin);
+    return json(res, 200, { ok: true });
   }
 
   // State endpoints (public for viewing by Ben & Shin, and saving updates)

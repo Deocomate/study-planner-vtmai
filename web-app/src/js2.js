@@ -2,9 +2,9 @@
   /* ---------- UI plumbing ---------- */
   const rerender = () => { save(); render(); };
   const toast = (m) => { document.querySelectorAll('.toast').forEach((x) => x.remove()); const el = h('div', { class: 'toast', role: 'status' }, m); document.body.append(el); setTimeout(() => el.remove(), 2800); };
-  const modal = (title, body, actions) => {
+  const modal = (title, body, actions, sticky) => {   // sticky: no closing by tapping outside (the PIN gate)
     const close = () => { closePop(); ov.remove(); };
-    const ov = h('div', { class: 'overlay', onmousedown: (e) => { if (e.target === ov) close(); } }, h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+    const ov = h('div', { class: sticky ? 'overlay gate' : 'overlay', onmousedown: (e) => { if (e.target === ov && !sticky) close(); } }, h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
       h('h2', null, title), body, h('div', { class: 'foot' }, (actions || [{ label: t('Close') }]).map((a) => h('button', { class: `btn ${a.primary ? 'primary' : 'ghost'} ${a.danger ? 'danger' : ''}`, onclick: () => { if (!a.fn || a.fn() !== false) close(); } }, a.label)))));
     document.body.append(ov); enhanceIn(ov); const f = ov.querySelector('input:not([type=hidden]):not(.pk-native),textarea,.pk'); if (f) f.focus(); return close;
   };
@@ -238,6 +238,24 @@
   };
 
   /* ---------- header, nav, decorations ---------- */
+  /* ---------- child PIN: each child opens their own planner with a password; a signed-in parent skips it ---------- */
+  const kidOpen = (r) => !SRV.on || AUTH.isAdmin || LS.get('sp-unlocked', '') === r;
+  const switchTo = (r) => { const changed = UI.role !== r; UI.role = r; LS.set('sp-role', r); if (!NAV().some(([k]) => k === UI.page)) UI.page = 'today'; render(); if (changed) showSplash(); };
+  const pinGate = (kid, onOk, sticky) => {
+    let sel = kid; let closeFn = null;
+    const pin = inp({ type: 'password', inputmode: 'numeric', autocomplete: 'off', maxlength: 8, placeholder: '••••', style: 'font-size:1.6rem;letter-spacing:.4em;text-align:center' });
+    const err = h('div', { class: 'err', role: 'alert' });
+    const seg = segEl(KIDS.map((c) => [c, NAME(c)]), sel, (x) => { sel = x; err.textContent = ''; pin.focus(); });
+    const submit = async () => { if (!pin.value) { err.textContent = t('Please enter the password.'); return; }
+      try { const r = await api('/api/auth/kid', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kid: sel, pin: pin.value }) }); const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) { err.textContent = r.status === 429 ? t('Too many wrong tries. Wait 1 minute and try again.') : t('Wrong password. Try again.'); pin.value = ''; pin.focus(); return; }
+        LS.set('sp-unlocked', sel); if (closeFn) closeFn(); onOk(sel);
+      } catch (e) { err.textContent = t('Could not check the password. Check the internet and try again.'); } };
+    pin.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    const mom = sticky ? h('button', { type: 'button', class: 'btn ghost sm', style: 'justify-self:start', onclick: () => showLoginModal(() => { if (closeFn) closeFn(); onOk('parent'); }) }, `🔒 ${NAME(MOM)}`) : null;
+    const go = { label: t('Open'), primary: true, fn: () => { submit(); return false; } };
+    closeFn = modal(t('Who is studying?'), h('div', { class: 'stackc' }, seg, field(t('Password'), pin), err, mom), sticky ? [go] : [{ label: t('Cancel') }, go], sticky);
+    setTimeout(() => pin.focus(), 50); };
   const showLoginModal = (onSuccess) => {
     const fUser = inp({ value: AUTH.user || 'thanhmai', autocomplete: 'username' });
     const fPass = inp({ type: 'password', placeholder: t('Enter password'), autocomplete: 'current-password' });
@@ -297,6 +315,7 @@
     UI.page = 'today';
     render();
     toast(t('Logged out.'));
+    if (!kidOpen(UI.role)) pinGate(UI.role, switchTo, true);
   };
 
   const NAV = () => (UI.role === 'parent' ? [['today', t('Today')], ['month', t('Month')], ['perf', t('Performance')], ['rewards', t('Rewards')], ['import', t('Import')], ['students', t('Students')], ['resources', t('Resources')], ['admin', t('Admin')]] : [['today', t('Today')], ['month', t('Month')], ['rewards', t('Rewards')], ['import', t('Import')], ['resources', t('Resources')]]);
@@ -328,14 +347,10 @@
               });
               return;
             }
-            const changed = UI.role !== r;
-            UI.role = r;
-            LS.set('sp-role', r);
-            if (!NAV().some(([k]) => k === UI.page)) UI.page = 'today';
-            render();
-            if (changed) showSplash();
+            if (r !== 'parent' && !kidOpen(r)) { pinGate(r, switchTo, false); return; }
+            switchTo(r);
           }
-        }, r === 'parent' ? (SRV.on && !AUTH.isAdmin ? `🔒 ${NAME(MOM)}` : NAME(MOM)) : NAME(r))))),
+        }, r === 'parent' ? (SRV.on && !AUTH.isAdmin ? `🔒 ${NAME(MOM)}` : NAME(MOM)) : `${kidOpen(r) ? '' : '🔒 '}${NAME(r)}`)))),
       H ? h('span', { class: 'hold l', 'aria-hidden': 'true' }, H.icons[0]) : null,
       H ? h('div', { class: 'hold r', role: 'img', 'aria-label': H.left > 0 ? t('{0} day(s) until {1}', H.left, H.name) : H.name }, h('div', { class: 'htag' }, H.left > 0 ? [h('b', null, H.left), h('span', null, H.left === 1 ? t('day left') : t('days left'))] : h('span', null, t('Have fun!')), h('i', null, H.icons[1]))) : null);
     return el; };

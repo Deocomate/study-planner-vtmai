@@ -50,3 +50,24 @@ test('session creation, verification, and deletion', () => {
   }
 });
 
+
+test('child PINs start at the defaults, can be changed and survive a restart', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sp-auth-'));
+  let store = openStore(dir, 'a', 'b');
+  try {
+    assert.equal(store.verifyKidPin('ben', '5555'), true);
+    assert.equal(store.verifyKidPin('shin', '8888'), true);
+    assert.equal(store.verifyKidPin('ben', '8888'), false);
+    assert.equal(store.verifyKidPin('mom', '5555'), false);
+    assert.equal(store.verifyKidPin('ben', ''), false);
+    assert.equal(store.setKidPin('ben', '1234'), true);
+    assert.equal(store.setKidPin('nobody', '1234'), false);
+    store.close();
+    store = openStore(dir, 'a', 'b');
+    assert.equal(store.verifyKidPin('ben', '1234'), true);
+    assert.equal(store.verifyKidPin('ben', '5555'), false);
+  } finally {
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
