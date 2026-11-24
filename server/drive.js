@@ -16,7 +16,7 @@ export const parseDriveUrl = (raw) => {
   return null;
 };
 
-const sheetCsvUrl = (id, gid) => `https://docs.google.com/spreadsheets/d/${id}/export?format=csv${gid ? `&gid=${gid}` : ''}`;
+const sheetXlsxUrl = (id) => `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`;   // every tab, so each child's tab can be read
 const fileUrl = (id) => `https://drive.google.com/uc?export=download&id=${id}`;
 
 const grab = async (url, limit) => {
@@ -32,7 +32,7 @@ const kindOf = (g) => (g.buf[0] === 0x50 && g.buf[1] === 0x4b ? 'xlsx' : 'csv');
 export const fetchDrive = async (raw, limit = 20 * 1048576) => {
   const p = parseDriveUrl(raw);
   if (!p) throw Object.assign(new Error('bad_link'), { code: 400 });
-  const tries = p.type === 'sheet' ? [sheetCsvUrl(p.id, p.gid)] : [fileUrl(p.id), sheetCsvUrl(p.id, null)];   // a Drive link may point to a Google Sheet
+  const tries = p.type === 'sheet' ? [sheetXlsxUrl(p.id)] : [fileUrl(p.id), sheetXlsxUrl(p.id)];   // a Drive link may point to a Google Sheet
   for (const url of tries) {
     const g = await grab(url, limit);
     if (g.ok && g.buf.length && !isHtml(g)) return { kind: kindOf(g), data: g.buf };

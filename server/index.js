@@ -6,7 +6,7 @@
 //   POST /api/auth/change-password– change admin password { currentPassword, newPassword, newUser }
 //   POST /api/auth/kid            – check a child's PIN { kid, pin } → { ok } (a few wrong tries pause it)
 //   POST /api/auth/kid-pin        – set a child's PIN { kid, pin } (admin)
-//   POST /api/drive               – { url }: download a shared Google Drive / Sheets file for the Import page → raw bytes, X-Kind: csv|xlsx
+//   POST /api/drive               – { url }: download a shared Google Drive file / whole Google Sheet (.xlsx) for the Import page → raw bytes, X-Kind: csv|xlsx
 //   GET  /api/state               – the whole planner state  { app, state, rev, epoch, updatedAt } (public)
 //   GET  /api/state/rev           – only { rev, epoch } (cheap polling, public)
 //   PUT  /api/state               – save { state, epoch } (POST works too, for sendBeacon)
