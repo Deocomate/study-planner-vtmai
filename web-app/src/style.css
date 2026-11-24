@@ -238,7 +238,8 @@ body { background-size: 560px 560px; }
 .sp-tip { font-size: .75rem; margin-top: 10px; opacity: .7; }
 .sp-names { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; } .sp-names .btn { min-width: 96px; font-size: 1.05rem; }
 .sp-pin { display: grid; gap: 6px; margin-top: 16px; text-align: left; } .sp-pin[hidden] { display: none; } .sp-pin .sp-go { justify-self: center; } .sp-pw { font-size: 1.6rem; letter-spacing: .4em; text-align: center; }
-.splash ~ .overlay, .overlay { z-index: 300; }
+/* only a box opened over the welcome screen (e.g. Mom sign-in) goes above it; its pickers follow */
+.splash ~ .overlay { z-index: 300; } .splash ~ .pk-pop { z-index: 310; }
 .stk { position: absolute; z-index: 1; display: block; pointer-events: none; filter: drop-shadow(0 3px 0 rgb(0 0 0 / .12)); } .stk svg { display: block; width: 100%; height: auto; }
 .a-bob { animation: bob var(--d, 3s) ease-in-out infinite; } .a-wiggle { animation: wig var(--d, 2.2s) ease-in-out infinite; } .a-spin { animation: spin var(--d, 7s) linear infinite; }
 .a-pop { animation: pop var(--d, 1.8s) ease-in-out infinite; } .a-drift { animation: drift 9s ease-in-out infinite; } .a-peek { animation: peek 4s ease-in-out infinite; transform-origin: 50% 100%; }
