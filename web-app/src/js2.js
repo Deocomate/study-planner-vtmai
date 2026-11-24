@@ -224,7 +224,12 @@
         for (const c of kids) for (const d of dates.slice(e ? 1 : 0)) { D.tasks.push(Object.assign({ id: uid(), child: c, date: d, status: 'todo', review: 'none', feedback: '', doneAt: null, by: isP ? 'parent' : 'child', series, repeat: rep === 'yes' }, base, c === MOM ? { due: d } : {})); made++; }
         UI.date = dates[0]; UI.month = dates[0].slice(0, 7); UI.page = UI.page === 'month' ? 'month' : 'today'; toast(e ? (made ? t('Saved. {0} more day(s) added.', made) : t('Saved.')) : t('Added {0} task(s).', made)); rerender(); };
       if (w.length) { confirmBox(t('Please check this'), w.join(' '), 'Save anyway', commit); return true; } commit(); return true; };
-    const actions = [{ label: t('Cancel') }]; if (e && canEdit(k)) actions.unshift({ label: t('Delete'), danger: true, fn: () => { confirmBox(t('Delete this task?'), k.title, 'Delete', () => { D.tasks = D.tasks.filter((x) => x.id !== k.id); toast(t('Deleted.')); rerender(); }, true); } });
+    const actions = [{ label: t('Cancel') }];
+    /* a repeating task can be deleted for this day only, or for this day and every later day of the same series */
+    const later = e && k.repeat && k.series ? D.tasks.filter((x) => x.series === k.series && x.child === k.child && x.date >= k.date) : [];
+    const delOne = () => { D.tasks = D.tasks.filter((x) => x.id !== k.id); toast(t('Deleted.')); rerender(); };
+    const delLater = () => { const ids = new Set(later.map((x) => x.id)); D.tasks = D.tasks.filter((x) => !ids.has(x.id)); toast(t('Deleted {0} task(s).', ids.size)); rerender(); };
+    if (e && canEdit(k)) actions.unshift({ label: t('Delete'), danger: true, fn: () => { if (later.length > 1) modal(t('Delete repeating task?'), h('p', { class: 'soft' }, t('"{0}" repeats on {1} day(s) from {2} on.', k.title, later.length, fmtDay(k.date))), [{ label: t('Cancel') }, { label: t('Only this day'), fn: delOne }, { label: t('This day and all later days'), danger: true, fn: delLater }]); else confirmBox(t('Delete this task?'), k.title, 'Delete', delOne, true); } });
     actions.push({ label: e ? t('Save changes') : t('Add task'), primary: true, fn: run }); modal(e ? t('Edit task') : t('Add task'), body, actions);
   };
 
