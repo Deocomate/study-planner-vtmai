@@ -466,5 +466,7 @@
   "The file must be shared: Share → \"Anyone with the link\". Every tab is read: a tab named Ben or Shin goes to that child.": "File phải được chia sẻ: Chia sẻ → \"Bất kỳ ai có đường liên kết\". App đọc tất cả các tab: tab tên Ben là bài của Ben, tab tên Shin là bài của Shin.",
   "First row = column names: STT, Teacher (Tên giáo viên), Subject (Tên môn học), Task (Bài tập), Due date, Link. Due date is the day the task is done: each task is placed on that day. Every tab is read: a tab named Ben or Shin goes to that child.": "Dòng đầu là tên cột: STT, Tên giáo viên, Tên môn học, Bài tập, Due date, Link. Due date là ngày làm bài: mỗi bài được đặt đúng vào ngày đó. App đọc tất cả các tab: tab tên Ben là bài của Ben, tab tên Shin là bài của Shin.",
   "Finished this week": "Đã hoàn thành tuần này",
-  "Nothing finished yet this week.": "Tuần này chưa xong việc nào."
+  "Nothing finished yet this week.": "Tuần này chưa xong việc nào.",
+  "Nothing new: all {0} task(s) are already in the planner.": "Không có gì mới: cả {0} việc đều đã có trong lịch.",
+  "{0} task(s) already in the planner were left out.": "Đã bỏ qua {0} việc đã có trong lịch."
 }
