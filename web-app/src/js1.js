@@ -61,7 +61,8 @@
   let D;
   let FIRST_RUN = LS.get(KEY, null) === null;
   try { D = JSON.parse(LS.get(KEY, 'null')) || fresh(); } catch (e) { D = fresh(); }
-  const ensure = () => { const f = fresh(); for (const k of Object.keys(f)) if (D[k] === undefined) D[k] = f[k]; D.rules = Object.assign(f.rules, D.rules); D.names = Object.assign(f.names, D.names); };
+  const ensure = () => { const f = fresh(); for (const k of Object.keys(f)) if (D[k] === undefined) D[k] = f[k]; D.rules = Object.assign(f.rules, D.rules); D.names = Object.assign(f.names, D.names);
+    D.tasks.forEach((k) => { if (k.series && !k.repeat) k.repeat = true; }); /* repeating tasks made in the task form: daily, never carried over */ };
   ensure();
   /* ---------- server sync: when the page is served by the Node backend (server/), the state lives in its database.
      Without a backend (/api/state missing) everything stays in this browser as before. ---------- */
@@ -140,7 +141,7 @@
   const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
   const minutesOf = (k) => (k.start && k.end && hm(k.end) > hm(k.start) ? hm(k.end) - hm(k.start) : k.minutes || 30);
   const endMin = (k) => (k.start ? hm(k.start) + minutesOf(k) : null);
-  const isOverdue = (k) => k.status !== 'done' && k.date < todayStr();
+  const isOverdue = (k) => k.status !== 'done' && !k.repeat && k.date < todayStr();
   const isLate = (k) => k.status !== 'done' && k.date === todayStr() && !!k.start && endMin(k) < nowMin();
   const isNow = (k) => k.status !== 'done' && k.date === todayStr() && !!k.start && hm(k.start) <= nowMin() && nowMin() < endMin(k);
   const skey = (x) => { const v = String(x || '').toLowerCase().trim(); if (/math|toán|toan/.test(v)) return 'maths'; if (/esl|efl/.test(v)) return 'esl'; if (/sci|khoa học/.test(v)) return 'science'; if (/tiếng việt|tieng viet|^tv$/.test(v)) return 'viet'; if (/vnh|việt nam học|ls\s*&|lịch sử|địa lý|đl\b/.test(v)) return 'social'; if (/đọc sách|reading passport|library/.test(v)) return 'read'; if (/debate/.test(v)) return 'debate'; if (/eng|anh|writing|reading|shadow|vocab|grammar|mock|test/.test(v)) return 'english'; if (!v || v === 'other') return 'other'; let n = 0; for (const ch of v) n = (n * 31 + ch.charCodeAt(0)) % 3; return ['x1', 'x2', 'x3'][n]; };
