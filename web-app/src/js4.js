@@ -50,7 +50,8 @@
     return { from: firstDue && addDays(firstDue, -1) < today ? addDays(firstDue, -1) : today, repFrom: today, weeks: 4, wk: 120, we: 150, wkStart: '19:00', weStart: '19:00', afterClass: '19:30', end: '21:30' }; };
   const commitPlan = (items, R, isP) => { const ok = items.filter((x) => !x.repeatDays && x.include && x.title.trim() && x.date); const merged = new Map(); let n = 0;
     const base = (x, extra) => Object.assign({ child: x.child, title: x.title.trim(), subject: (x.subject || '').trim(), teacher: (x.teacher || '').trim(), note: x.note || '', links: x.links || [], date: x.date, start: '', end: '', order: x.start ? hm(x.start) : 9999, minutes: Math.max(5, x.minutes || 30), priority: x.priority || 'normal', optional: !!x.optional, due: x.due || '', needReview: false, status: 'todo', review: 'none', feedback: '', doneAt: null, by: isP ? 'parent' : 'child', series: null }, extra);
-    const push = (b) => { const key = `${b.child}|${b.title}|${b.date}|${b.start}`; if (merged.has(key)) return; merged.set(key, 1); D.tasks.push({ id: uid(), ...b }); n++; };
+    const have = new Set(D.tasks.map(tkey));   // importing the same sheet again does not add the same task twice
+    const push = (b) => { const key = `${b.child}|${b.title}|${b.date}|${b.start}`; if (merged.has(key) || have.has(tkey(b))) return; merged.set(key, 1); D.tasks.push({ id: uid(), ...b }); n++; };
     ok.forEach((x) => push(base(x))); items.filter((x) => x.repeatDays && x.include).forEach((x) => { const sid = uid(); (x._inst || []).forEach((o) => push(base(x, { date: o.date, start: '', end: '', order: o.start ? hm(o.start) : 9999, due: '', repeat: true, series: sid }))); });
     return n; };
   const planItems = (items, P) => {
@@ -224,7 +225,7 @@
     const over = mine.filter(isOver).sort((a, b) => byTeacher(a, b) || (a.due || a.date).localeCompare(b.due || b.date) || byTime(a, b));
     const ev = mine.filter((k) => k.event && k.date === date);
     const due = mine.filter((k) => !k.repeat && !k.event && !isOver(k) && (k.date === date || (!!ref && k.date < date && k.status !== 'done' && carries(k, ref)))).sort((a, b) => byTeacher(a, b) || byTime(a, b) || (a.due || '9').localeCompare(b.due || '9'));
-    const daily = mine.filter((k) => k.repeat && k.date === date).sort(byTime);
+    const daily = oneDaily(mine.filter((k) => k.repeat && k.date === date)).sort(byTime);
     return [...(ev.length ? [['ev', t('EVENTS'), ev]] : []), ['over', t('OVERDUE'), over], ['due', t('DUE'), due], ['daily', t('DAILY TASKS'), daily]]; };
   pages.sheet = () => { const date = UI.sheet; const kids = who().filter((c) => c !== MOM || UI.who === MOM);
     const sheetText = () => kids.map((c) => `${NAME(c)}\n${sheetSections(date, c).map(([, title, arr]) => `\n${title} (${arr.length})\n${arr.length ? arr.map((k, i) => `${i === 0 || (arr[i - 1].teacher || '') !== (k.teacher || '') ? `  — ${k.teacher || t('Other')} —\n` : ''}${i + 1}. [ ] ${k.title}${labelOf(k) && k.title !== k.subject ? ` (${labelOf(k)})` : ''}${k.due ? ` – ${t('Due {0}', fmtDay(k.due))}` : ''}${(k.links || []).map((u) => `\n   ${u}`).join('')}`).join('\n') : `– ${t('None')}`}`).join('\n')}`).join('\n\n');

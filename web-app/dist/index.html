@@ -430,7 +430,11 @@ body { background-size: 560px 560px; }
   const labelOf = (k) => [k.subject && k.subject !== 'Other' ? k.subject : '', k.teacher].filter(Boolean).join(' · ');
   const who = () => (UI.role === 'parent' ? (UI.who === 'all' ? PEOPLE : [UI.who]) : [UI.role]);
   const byTime = (a, b) => (a.start ? 0 : 1) - (b.start ? 0 : 1) || (a.start || '').localeCompare(b.start || '') || (a.order ?? 9999) - (b.order ?? 9999) || a.title.localeCompare(b.title);
-  const tasksOn = (date, kids) => D.tasks.filter((k) => (kids || who()).includes(k.child) && k.date === date).sort((a, b) => (b.event ? 1 : 0) - (a.event ? 1 : 0) || byTime(a, b));
+  /* same child, day and task name (ignoring bullets, spaces, case) = the same task */
+  const tkey = (k) => `${k.child}|${k.date}|${String(k.title || '').toLowerCase().replace(/^[s•·*-–]+/, '').replace(/s+/g, ' ').trim()}`;
+  /* a daily task added more than once (e.g. the same sheet imported twice) shows as one row per day; a finished copy wins */
+  const oneDaily = (list) => { const at = new Map(), out = []; for (const k of list) { if (!k.repeat) { out.push(k); continue; } const key = tkey(k); if (!at.has(key)) { at.set(key, out.length); out.push(k); } else if (out[at.get(key)].status !== 'done' && k.status === 'done') out[at.get(key)] = k; } return out; };
+  const tasksOn = (date, kids) => oneDaily(D.tasks.filter((k) => (kids || who()).includes(k.child) && k.date === date)).sort((a, b) => (b.event ? 1 : 0) - (a.event ? 1 : 0) || byTime(a, b));
   const blocksOn = (c, date) => D.blocks.filter((b) => b.c === c && b.day === wd(date)).sort((a, b) => a.s.localeCompare(b.s));
   const conflicts = (k) => { const out = []; if (!k.start) return out; const a = hm(k.start), b = a + minutesOf(k);
     for (const f of blocksOn(k.child, k.date)) if (a < hm(f.e) && hm(f.s) < b) out.push(t('It overlaps "{0}" ({1}-{2}).', f.t, f.s, f.e));
@@ -446,7 +450,7 @@ body { background-size: 560px 560px; }
       if (k.review === 'approved' && D.rules.approved) items.push({ why: t('{0} approved', k.title), pts: D.rules.approved, kind: t('Approved by parent') });
     }
     const byDay = {}; D.tasks.filter((x) => x.child === c && !x.event).forEach((x) => (byDay[x.date] ||= []).push(x));
-    for (const [d, list] of Object.entries(byDay)) if (d <= todayStr() && list.every((x) => x.status === 'done') && D.rules.daily) items.push({ why: t('Everything on {0} done', fmtDay(d)), pts: D.rules.daily, kind: t('Day bonus') });
+    for (const [d, list] of Object.entries(byDay)) if (d <= todayStr() && oneDaily(list).every((x) => x.status === 'done') && D.rules.daily) items.push({ why: t('Everything on {0} done', fmtDay(d)), pts: D.rules.daily, kind: t('Day bonus') });
     const earned = items.reduce((a, x) => a + x.pts, 0), adj = D.adj.filter((x) => x.child === c).reduce((a, x) => a + x.pts, 0);
     const used = D.redeems.filter((x) => x.child === c && x.status === 'approved').reduce((a, x) => a + x.cost, 0), held = D.redeems.filter((x) => x.child === c && x.status === 'pending').reduce((a, x) => a + x.cost, 0);
     return { items, earned, adj, used, held, balance: earned + adj - used - held };
@@ -1220,7 +1224,8 @@ body { background-size: 560px 560px; }
     return { from: firstDue && addDays(firstDue, -1) < today ? addDays(firstDue, -1) : today, repFrom: today, weeks: 4, wk: 120, we: 150, wkStart: '19:00', weStart: '19:00', afterClass: '19:30', end: '21:30' }; };
   const commitPlan = (items, R, isP) => { const ok = items.filter((x) => !x.repeatDays && x.include && x.title.trim() && x.date); const merged = new Map(); let n = 0;
     const base = (x, extra) => Object.assign({ child: x.child, title: x.title.trim(), subject: (x.subject || '').trim(), teacher: (x.teacher || '').trim(), note: x.note || '', links: x.links || [], date: x.date, start: '', end: '', order: x.start ? hm(x.start) : 9999, minutes: Math.max(5, x.minutes || 30), priority: x.priority || 'normal', optional: !!x.optional, due: x.due || '', needReview: false, status: 'todo', review: 'none', feedback: '', doneAt: null, by: isP ? 'parent' : 'child', series: null }, extra);
-    const push = (b) => { const key = `${b.child}|${b.title}|${b.date}|${b.start}`; if (merged.has(key)) return; merged.set(key, 1); D.tasks.push({ id: uid(), ...b }); n++; };
+    const have = new Set(D.tasks.map(tkey));   // importing the same sheet again does not add the same task twice
+    const push = (b) => { const key = `${b.child}|${b.title}|${b.date}|${b.start}`; if (merged.has(key) || have.has(tkey(b))) return; merged.set(key, 1); D.tasks.push({ id: uid(), ...b }); n++; };
     ok.forEach((x) => push(base(x))); items.filter((x) => x.repeatDays && x.include).forEach((x) => { const sid = uid(); (x._inst || []).forEach((o) => push(base(x, { date: o.date, start: '', end: '', order: o.start ? hm(o.start) : 9999, due: '', repeat: true, series: sid }))); });
     return n; };
   const planItems = (items, P) => {
@@ -1394,7 +1399,7 @@ body { background-size: 560px 560px; }
     const over = mine.filter(isOver).sort((a, b) => byTeacher(a, b) || (a.due || a.date).localeCompare(b.due || b.date) || byTime(a, b));
     const ev = mine.filter((k) => k.event && k.date === date);
     const due = mine.filter((k) => !k.repeat && !k.event && !isOver(k) && (k.date === date || (!!ref && k.date < date && k.status !== 'done' && carries(k, ref)))).sort((a, b) => byTeacher(a, b) || byTime(a, b) || (a.due || '9').localeCompare(b.due || '9'));
-    const daily = mine.filter((k) => k.repeat && k.date === date).sort(byTime);
+    const daily = oneDaily(mine.filter((k) => k.repeat && k.date === date)).sort(byTime);
     return [...(ev.length ? [['ev', t('EVENTS'), ev]] : []), ['over', t('OVERDUE'), over], ['due', t('DUE'), due], ['daily', t('DAILY TASKS'), daily]]; };
   pages.sheet = () => { const date = UI.sheet; const kids = who().filter((c) => c !== MOM || UI.who === MOM);
     const sheetText = () => kids.map((c) => `${NAME(c)}\n${sheetSections(date, c).map(([, title, arr]) => `\n${title} (${arr.length})\n${arr.length ? arr.map((k, i) => `${i === 0 || (arr[i - 1].teacher || '') !== (k.teacher || '') ? `  — ${k.teacher || t('Other')} —\n` : ''}${i + 1}. [ ] ${k.title}${labelOf(k) && k.title !== k.subject ? ` (${labelOf(k)})` : ''}${k.due ? ` – ${t('Due {0}', fmtDay(k.due))}` : ''}${(k.links || []).map((u) => `\n   ${u}`).join('')}`).join('\n') : `– ${t('None')}`}`).join('\n')}`).join('\n\n');

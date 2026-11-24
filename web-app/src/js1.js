@@ -153,7 +153,11 @@
   const labelOf = (k) => [k.subject && k.subject !== 'Other' ? k.subject : '', k.teacher].filter(Boolean).join(' · ');
   const who = () => (UI.role === 'parent' ? (UI.who === 'all' ? PEOPLE : [UI.who]) : [UI.role]);
   const byTime = (a, b) => (a.start ? 0 : 1) - (b.start ? 0 : 1) || (a.start || '').localeCompare(b.start || '') || (a.order ?? 9999) - (b.order ?? 9999) || a.title.localeCompare(b.title);
-  const tasksOn = (date, kids) => D.tasks.filter((k) => (kids || who()).includes(k.child) && k.date === date).sort((a, b) => (b.event ? 1 : 0) - (a.event ? 1 : 0) || byTime(a, b));
+  /* same child, day and task name (ignoring bullets, spaces, case) = the same task */
+  const tkey = (k) => `${k.child}|${k.date}|${String(k.title || '').toLowerCase().replace(/^[s•·*-–]+/, '').replace(/s+/g, ' ').trim()}`;
+  /* a daily task added more than once (e.g. the same sheet imported twice) shows as one row per day; a finished copy wins */
+  const oneDaily = (list) => { const at = new Map(), out = []; for (const k of list) { if (!k.repeat) { out.push(k); continue; } const key = tkey(k); if (!at.has(key)) { at.set(key, out.length); out.push(k); } else if (out[at.get(key)].status !== 'done' && k.status === 'done') out[at.get(key)] = k; } return out; };
+  const tasksOn = (date, kids) => oneDaily(D.tasks.filter((k) => (kids || who()).includes(k.child) && k.date === date)).sort((a, b) => (b.event ? 1 : 0) - (a.event ? 1 : 0) || byTime(a, b));
   const blocksOn = (c, date) => D.blocks.filter((b) => b.c === c && b.day === wd(date)).sort((a, b) => a.s.localeCompare(b.s));
   const conflicts = (k) => { const out = []; if (!k.start) return out; const a = hm(k.start), b = a + minutesOf(k);
     for (const f of blocksOn(k.child, k.date)) if (a < hm(f.e) && hm(f.s) < b) out.push(t('It overlaps "{0}" ({1}-{2}).', f.t, f.s, f.e));
@@ -169,7 +173,7 @@
       if (k.review === 'approved' && D.rules.approved) items.push({ why: t('{0} approved', k.title), pts: D.rules.approved, kind: t('Approved by parent') });
     }
     const byDay = {}; D.tasks.filter((x) => x.child === c && !x.event).forEach((x) => (byDay[x.date] ||= []).push(x));
-    for (const [d, list] of Object.entries(byDay)) if (d <= todayStr() && list.every((x) => x.status === 'done') && D.rules.daily) items.push({ why: t('Everything on {0} done', fmtDay(d)), pts: D.rules.daily, kind: t('Day bonus') });
+    for (const [d, list] of Object.entries(byDay)) if (d <= todayStr() && oneDaily(list).every((x) => x.status === 'done') && D.rules.daily) items.push({ why: t('Everything on {0} done', fmtDay(d)), pts: D.rules.daily, kind: t('Day bonus') });
     const earned = items.reduce((a, x) => a + x.pts, 0), adj = D.adj.filter((x) => x.child === c).reduce((a, x) => a + x.pts, 0);
     const used = D.redeems.filter((x) => x.child === c && x.status === 'approved').reduce((a, x) => a + x.cost, 0), held = D.redeems.filter((x) => x.child === c && x.status === 'pending').reduce((a, x) => a + x.cost, 0);
     return { items, earned, adj, used, held, balance: earned + adj - used - held };
