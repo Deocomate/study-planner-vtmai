@@ -436,5 +436,9 @@
   "✓ No day is over the daily limit": "✓ Không ngày nào vượt giới hạn",
   "Hide finished": "Ẩn việc đã xong",
   "✓ {0} finished · Show": "✓ {0} việc đã xong · Xem",
-  "All done! 🎉": "Xong hết rồi! 🎉"
+  "All done! 🎉": "Xong hết rồi! 🎉",
+  "Event": "Sự kiện",
+  "Events": "Sự kiện",
+  "EVENTS": "SỰ KIỆN",
+  "This is an event (exam, school trip…), not a task": "Đây là sự kiện (thi, dã ngoại…), không phải bài tập"
 }

@@ -17,7 +17,7 @@
   const sentSet = () => { try { return new Set(JSON.parse(LS.get(SENT_KEY, '[]'))); } catch (e) { return new Set(); } };
   const notifOK = () => { try { return 'Notification' in window && Notification.permission === 'granted'; } catch (e) { return false; } };
   const notify = (title, body) => { toast(`🔔 ${title}`); try { if (notifOK()) new Notification(title, { body }); } catch (e) { /* not allowed here */ } };
-  const checkReminders = () => { const sent = sentSet(), today = todayStr(), now = nowMin(); let changed = false; const mine = D.tasks.filter((k) => who().includes(k.child) && k.date === today && k.status !== 'done');
+  const checkReminders = () => { const sent = sentSet(), today = todayStr(), now = nowMin(); let changed = false; const mine = D.tasks.filter((k) => who().includes(k.child) && k.date === today && k.status !== 'done' && !k.event);
     for (const k of mine) { if (!k.start) continue; const key = `${k.id}|${today}|s`; const st = hm(k.start); if (now >= st - 10 && now < st + 5 && !sent.has(key)) { sent.add(key); changed = true; notify(t('Starting soon: {0}', k.title), `${k.start}${labelOf(k) ? ` · ${labelOf(k)}` : ''}`); } }
     const mk = `morning|${UI.role}|${today}`; if (now >= 420 && mine.length && !sent.has(mk)) { sent.add(mk); changed = true; notify(t('Good morning!'), t('You have {0} unfinished task(s) today.', mine.length)); }
     if (changed) LS.set(SENT_KEY, JSON.stringify([...sent].slice(-300))); };

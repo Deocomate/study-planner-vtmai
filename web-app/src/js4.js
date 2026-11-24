@@ -197,11 +197,12 @@
 
   /* ---------- Print sheet ---------- */
   const sheetSections = (date, c) => { const today = todayStr(); const ref = date; void today; const mine = D.tasks.filter((k) => k.child === c);
-    const isOver = (k) => !!ref && k.status !== 'done' && !k.repeat && (k.due ? k.due < ref : k.date < ref);
+    const isOver = (k) => !!ref && k.status !== 'done' && !k.repeat && !k.event && (k.due ? k.due < ref : k.date < ref);
     const over = mine.filter(isOver).sort((a, b) => byTeacher(a, b) || (a.due || a.date).localeCompare(b.due || b.date) || byTime(a, b));
-    const due = mine.filter((k) => !k.repeat && !isOver(k) && (k.date === date || (!!ref && k.date < date && k.status !== 'done'))).sort((a, b) => byTeacher(a, b) || byTime(a, b) || (a.due || '9').localeCompare(b.due || '9'));
+    const ev = mine.filter((k) => k.event && k.date === date);
+    const due = mine.filter((k) => !k.repeat && !k.event && !isOver(k) && (k.date === date || (!!ref && k.date < date && k.status !== 'done'))).sort((a, b) => byTeacher(a, b) || byTime(a, b) || (a.due || '9').localeCompare(b.due || '9'));
     const daily = mine.filter((k) => k.repeat && k.date === date).sort(byTime);
-    return [['over', t('OVERDUE'), over], ['due', t('DUE'), due], ['daily', t('DAILY TASKS'), daily]]; };
+    return [...(ev.length ? [['ev', t('EVENTS'), ev]] : []), ['over', t('OVERDUE'), over], ['due', t('DUE'), due], ['daily', t('DAILY TASKS'), daily]]; };
   pages.sheet = () => { const date = UI.sheet; const kids = who().filter((c) => c !== MOM || UI.who === MOM);
     const sheetText = () => kids.map((c) => `${NAME(c)}\n${sheetSections(date, c).map(([, title, arr]) => `\n${title} (${arr.length})\n${arr.length ? arr.map((k, i) => `${i === 0 || (arr[i - 1].teacher || '') !== (k.teacher || '') ? `  — ${k.teacher || t('Other')} —\n` : ''}${i + 1}. [ ] ${k.title}${labelOf(k) && k.title !== k.subject ? ` (${labelOf(k)})` : ''}${k.due ? ` – ${t('Due {0}', fmtDay(k.due))}` : ''}${(k.links || []).map((u) => `\n   ${u}`).join('')}`).join('\n') : `– ${t('None')}`}`).join('\n')}`).join('\n\n');
     return [h('div', { class: 'toolbar no-print' }, h('button', { class: 'btn secondary', onclick: () => { UI.page = 'today'; UI.date = date; render(); } }, `‹ ${t('Back')}`), inp({ type: 'date', value: date, required: true, style: 'width:auto', onchange: (e) => { if (e.target.value) { UI.sheet = e.target.value; render(); } } }), kidSelect(),

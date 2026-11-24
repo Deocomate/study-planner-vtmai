@@ -61,8 +61,10 @@
   let D;
   let FIRST_RUN = LS.get(KEY, null) === null;
   try { D = JSON.parse(LS.get(KEY, 'null')) || fresh(); } catch (e) { D = fresh(); }
+  /* an event (exam, school trip…) is a calendar note, not work: shown first, never ticked, counted or carried over */
+  const looksEvent = (s) => /^\s*(thi|kiểm tra)(?=[\s\-:(]|$)/i.test(s || '');
   const ensure = () => { const f = fresh(); for (const k of Object.keys(f)) if (D[k] === undefined) D[k] = f[k]; D.rules = Object.assign(f.rules, D.rules); D.names = Object.assign(f.names, D.names);
-    D.tasks.forEach((k) => { if (k.series && !k.repeat) k.repeat = true; }); /* repeating tasks made in the task form: daily, never carried over */ };
+    D.tasks.forEach((k) => { if (k.series && !k.repeat) k.repeat = true; if (k.event === undefined && looksEvent(k.title)) k.event = true; }); /* repeating tasks made in the task form: daily, never carried over */ };
   ensure();
   /* ---------- server sync: when the page is served by the Node backend (server/), the state lives in its database.
      Without a backend (/api/state missing) everything stays in this browser as before. ---------- */
@@ -141,7 +143,7 @@
   const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
   const minutesOf = (k) => (k.start && k.end && hm(k.end) > hm(k.start) ? hm(k.end) - hm(k.start) : k.minutes || 30);
   const endMin = (k) => (k.start ? hm(k.start) + minutesOf(k) : null);
-  const isOverdue = (k) => k.status !== 'done' && !k.repeat && k.date < todayStr();
+  const isOverdue = (k) => k.status !== 'done' && !k.repeat && !k.event && k.date < todayStr();
   const isLate = (k) => k.status !== 'done' && k.date === todayStr() && !!k.start && endMin(k) < nowMin();
   const isNow = (k) => k.status !== 'done' && k.date === todayStr() && !!k.start && hm(k.start) <= nowMin() && nowMin() < endMin(k);
   const skey = (x) => { const v = String(x || '').toLowerCase().trim(); if (/math|toán|toan/.test(v)) return 'maths'; if (/esl|efl/.test(v)) return 'esl'; if (/sci|khoa học/.test(v)) return 'science'; if (/tiếng việt|tieng viet|^tv$/.test(v)) return 'viet'; if (/vnh|việt nam học|ls\s*&|lịch sử|địa lý|đl\b/.test(v)) return 'social'; if (/đọc sách|reading passport|library/.test(v)) return 'read'; if (/debate/.test(v)) return 'debate'; if (/eng|anh|writing|reading|shadow|vocab|grammar|mock|test/.test(v)) return 'english'; if (!v || v === 'other') return 'other'; let n = 0; for (const ch of v) n = (n * 31 + ch.charCodeAt(0)) % 3; return ['x1', 'x2', 'x3'][n]; };
@@ -149,7 +151,7 @@
   const labelOf = (k) => [k.subject && k.subject !== 'Other' ? k.subject : '', k.teacher].filter(Boolean).join(' · ');
   const who = () => (UI.role === 'parent' ? (UI.who === 'all' ? PEOPLE : [UI.who]) : [UI.role]);
   const byTime = (a, b) => (a.start ? 0 : 1) - (b.start ? 0 : 1) || (a.start || '').localeCompare(b.start || '') || (a.order ?? 9999) - (b.order ?? 9999) || a.title.localeCompare(b.title);
-  const tasksOn = (date, kids) => D.tasks.filter((k) => (kids || who()).includes(k.child) && k.date === date).sort(byTime);
+  const tasksOn = (date, kids) => D.tasks.filter((k) => (kids || who()).includes(k.child) && k.date === date).sort((a, b) => (b.event ? 1 : 0) - (a.event ? 1 : 0) || byTime(a, b));
   const blocksOn = (c, date) => D.blocks.filter((b) => b.c === c && b.day === wd(date)).sort((a, b) => a.s.localeCompare(b.s));
   const conflicts = (k) => { const out = []; if (!k.start) return out; const a = hm(k.start), b = a + minutesOf(k);
     for (const f of blocksOn(k.child, k.date)) if (a < hm(f.e) && hm(f.s) < b) out.push(t('It overlaps "{0}" ({1}-{2}).', f.t, f.s, f.e));
@@ -164,14 +166,14 @@
       if (D.rules.ontime && (!k.doneAt || k.doneAt.slice(0, 10) <= k.date)) items.push({ why: t('{0} on time', k.title), pts: D.rules.ontime, kind: t('On-time bonus') });
       if (k.review === 'approved' && D.rules.approved) items.push({ why: t('{0} approved', k.title), pts: D.rules.approved, kind: t('Approved by parent') });
     }
-    const byDay = {}; D.tasks.filter((x) => x.child === c).forEach((x) => (byDay[x.date] ||= []).push(x));
+    const byDay = {}; D.tasks.filter((x) => x.child === c && !x.event).forEach((x) => (byDay[x.date] ||= []).push(x));
     for (const [d, list] of Object.entries(byDay)) if (d <= todayStr() && list.every((x) => x.status === 'done') && D.rules.daily) items.push({ why: t('Everything on {0} done', fmtDay(d)), pts: D.rules.daily, kind: t('Day bonus') });
     const earned = items.reduce((a, x) => a + x.pts, 0), adj = D.adj.filter((x) => x.child === c).reduce((a, x) => a + x.pts, 0);
     const used = D.redeems.filter((x) => x.child === c && x.status === 'approved').reduce((a, x) => a + x.cost, 0), held = D.redeems.filter((x) => x.child === c && x.status === 'pending').reduce((a, x) => a + x.cost, 0);
     return { items, earned, adj, used, held, balance: earned + adj - used - held };
   };
   const ipadToday = (c) => D.redeems.filter((x) => x.child === c && x.day === todayStr() && x.status !== 'denied').reduce((a, x) => a + (x.ipadMin || 0), 0);
-  const stats = (list) => { const done = list.filter((k) => k.status === 'done'); const onTime = done.filter((k) => !k.doneAt || k.doneAt.slice(0, 10) <= k.date).length;
+  const stats = (list) => { list = list.filter((k) => !k.event); const done = list.filter((k) => k.status === 'done'); const onTime = done.filter((k) => !k.doneAt || k.doneAt.slice(0, 10) <= k.date).length;
     return { total: list.length, done: done.length, onTime, doneLate: done.length - onTime, doing: list.filter((k) => k.status === 'doing').length, overdue: list.filter(isOverdue).length, mins: done.reduce((a, k) => a + minutesOf(k), 0), completion: pct(done.length, list.length), onTimeRate: pct(onTime, done.length) }; };
 
   /* ---------- holidays (a week before: countdown tag, hanging icon, falling emoji) ---------- */

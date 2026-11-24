@@ -17,10 +17,10 @@
     if (canEdit(k)) acts.push(btn('📎', 'ghost icon', () => quickAttach(k), { 'aria-label': t('Attach files'), title: t('Attach files') }));
     if (canEdit(k)) acts.push(btn('✎', 'ghost icon', () => taskForm(k), { 'aria-label': t('Edit'), title: t('Edit') }));
     const time = k.start ? `${k.start}${k.end ? `–${k.end}` : ''}` : t('Any time');
-    return h('li', { class: `task2 sub-${skey(k.subject)} ${st === 'done' ? 'is-done' : ''} ${isNow(k) ? 'now' : ''} ${late || over ? 'is-late' : ''}` },
-      canStatus(k) ? h('button', { type: 'button', class: 'chk', 'aria-pressed': String(st === 'done'), 'aria-label': st === 'done' ? t('Reopen') : t('Mark as done'), title: st === 'done' ? t('Reopen') : t('Mark as done'), onclick: (e) => setStatus(k, st === 'done' ? 'todo' : 'done', e.currentTarget) }, st === 'done' ? '✓' : '') : h('span', { class: 'chk', 'aria-hidden': 'true' }),
+    return h('li', { class: `task2 sub-${skey(k.subject)} ${k.event ? 'is-ev' : ''} ${st === 'done' ? 'is-done' : ''} ${isNow(k) ? 'now' : ''} ${late || over ? 'is-late' : ''}` },
+      canStatus(k) && !k.event ? h('button', { type: 'button', class: 'chk', 'aria-pressed': String(st === 'done'), 'aria-label': st === 'done' ? t('Reopen') : t('Mark as done'), title: st === 'done' ? t('Reopen') : t('Mark as done'), onclick: (e) => setStatus(k, st === 'done' ? 'todo' : 'done', e.currentTarget) }, st === 'done' ? '✓' : '') : h('span', { class: 'chk', 'aria-hidden': 'true' }),
       h('div', { class: 'tb' },
-        h('div', { class: 'l1' }, h('span', { class: 'pre' }, k.child === MOM && !k.subject ? `📋 ${t('Prepare')}` : k.title === k.subject ? `${k.repeat ? '🔁' : SEMO[skey(k.subject)]} ${t('Practice')}` : `${SEMO[skey(k.subject)]} ${k.subject || t('Study')}`), h('h3', { class: 't-title' }, k.title), k.repeat && k.title !== k.subject ? h('span', { class: 'muted small', title: t('Repeats every week') }, '🔁') : null),
+        h('div', { class: 'l1' }, h('span', { class: 'pre' }, k.event ? `📅 ${t('Event')}` : k.child === MOM && !k.subject ? `📋 ${t('Prepare')}` : k.title === k.subject ? `${k.repeat ? '🔁' : SEMO[skey(k.subject)]} ${t('Practice')}` : `${SEMO[skey(k.subject)]} ${k.subject || t('Study')}`), h('h3', { class: 't-title' }, k.title), k.repeat && k.title !== k.subject ? h('span', { class: 'muted small', title: t('Repeats every week') }, '🔁') : null),
         h('div', { class: 'l2' }, k.teacher ? h('span', null, `👩‍🏫 ${k.teacher}`) : null, o.showDate ? h('span', null, `📅 ${fmtDay(k.date)}`) : null, o.showWho ? h('span', null, `👤 ${NAME(k.child)}`) : null),
         (di || k.optional || k.priority === 'high' || late || isNow(k) || st === 'doing' || (k.review && k.review !== 'none') || st === 'done') ? h('div', { class: 'l3' },
           di ? h('span', { class: `badge ${di.cls}` }, `📌 ${di.txt}`) : null, k.optional ? h('span', { class: 'badge' }, t('Optional')) : null, k.priority === 'high' ? h('span', { class: 'badge b-red' }, t('Important')) : null,
@@ -33,7 +33,7 @@
       acts.length ? h('div', { class: 'ta' }, acts) : null);
   };
   const weekStrip = () => { const ws = weekStart(UI.date); const today = todayStr();
-    return h('div', { class: 'card strip mb' }, [0, 1, 2, 3, 4, 5, 6].map((i) => { const d = addDays(ws, i), list = tasksOn(d); const un = list.filter((k) => k.status !== 'done').length; const mins = list.reduce((a, k) => a + minutesOf(k), 0); const dues = D.tasks.filter((k) => who().includes(k.child) && k.due === d).length;
+    return h('div', { class: 'card strip mb' }, [0, 1, 2, 3, 4, 5, 6].map((i) => { const d = addDays(ws, i), list = tasksOn(d); const un = list.filter((k) => k.status !== 'done' && !k.event).length; const mins = list.reduce((a, k) => a + (k.event ? 0 : minutesOf(k)), 0); const dues = D.tasks.filter((k) => who().includes(k.child) && k.due === d).length;
       const subs = [...new Set(list.map((k) => skey(k.subject)))];
       return h('button', { type: 'button', class: `sday ${d === today ? 'today' : ''} ${d < today ? 'past' : ''}`, 'aria-current': d === UI.date ? 'date' : null, 'aria-label': `${fmtLong(d)}: ${t('{0} task(s)', list.length)}`, onclick: () => { UI.date = d; render(); } },
         h('div', { class: 'sd-top' }, h('span', { class: 'sd-w' }, dowS(i + 1)), h('span', { class: 'sd-n tab' }, parse(d).getDate())),
@@ -57,10 +57,11 @@
     const momIn = UI.role === 'parent' && who().includes(MOM); const momOnly = momIn && who().length === 1;
     const ws2 = who().filter((c) => c !== MOM); const mine = (k) => ws2.includes(k.child);
     const secMom = momIn ? D.tasks.filter((k) => k.child === MOM && (k.status !== 'done' ? (k.due || k.date) <= addDays(date, 14) : (k.doneAt || '').slice(0, 10) === todayStr() || k.date === date)).sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || (a.due || a.date).localeCompare(b.due || b.date) || byTime(a, b)) : [];
-    const isOver = (k) => k.status !== 'done' && !k.repeat && (k.due ? k.due < today : k.date < today);
+    const isOver = (k) => k.status !== 'done' && !k.repeat && !k.event && (k.due ? k.due < today : k.date < today);
     const secOver = isToday ? D.tasks.filter((k) => mine(k) && isOver(k)).sort((a, b) => byTeacher(a, b) || (a.due || a.date).localeCompare(b.due || b.date) || byTime(a, b)) : [];
-    const secDue = (isToday ? D.tasks.filter((k) => mine(k) && !k.repeat && !isOver(k) && (k.date === date || (k.date < date && k.status !== 'done'))) : list.filter((k) => !k.repeat && mine(k))).sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || byTeacher(a, b) || byTime(a, b) || (a.due || '9').localeCompare(b.due || '9'));
-    const secDaily = list.filter((k) => k.repeat && mine(k)).sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || byTime(a, b));
+    const secEv = list.filter((k) => k.event && mine(k));
+    const secDue = (isToday ? D.tasks.filter((k) => mine(k) && !k.repeat && !k.event && !isOver(k) && (k.date === date || (k.date < date && k.status !== 'done'))) : list.filter((k) => !k.repeat && !k.event && mine(k))).sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || byTeacher(a, b) || byTime(a, b) || (a.due || '9').localeCompare(b.due || '9'));
+    const secDaily = list.filter((k) => k.repeat && !k.event && mine(k)).sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || byTime(a, b));
     const allT = [...secOver, ...secDue, ...secDaily]; const done = allT.filter((k) => k.status === 'done').length, doing = allT.filter((k) => k.status === 'doing').length, late = secOver.length;
     const out = [pageHead(isToday ? t('Today') : fmtDay(date), fmtLong(date), h('button', { class: 'btn secondary', onclick: () => { UI.sheet = date; UI.page = 'sheet'; render(); }, title: t('Printable page for this day') }, `🖨 ${t('Print sheet')}`), h('button', { class: 'btn primary', onclick: () => taskForm(null, { date }) }, `+ ${t('Add task')}`)),
       h('div', { class: 'toolbar' }, h('button', { class: 'btn secondary icon', 'aria-label': t('Previous week'), onclick: () => { UI.date = addDays(date, -7); render(); } }, '‹'), inp({ type: 'date', value: date, required: true, style: 'width:auto', 'aria-label': t('Choose a day'), onchange: (e) => { if (e.target.value) { UI.date = e.target.value; render(); } } }),
@@ -75,7 +76,8 @@
       arr.length ? h('ol', { class: 'items' }, teacherRuns(arr).map((k) => k.head ? h('li', { class: 'trun', 'aria-hidden': 'true' }, `👩‍🏫 ${k.head}`) : taskItem(k, { showWho, showDate: k.date !== date }))) : h('p', { class: 'muted small tsec-empty' }, hid ? t('All done! 🎉') : emptyTxt), more); };
     const emptyEl = h('div', { class: 'empty' }, svg(ART.empty), h('h3', null, t('No tasks on this day')), h('p', null, t('Add a task so everyone knows what to study.')), h('button', { class: 'btn primary', onclick: () => taskForm(null, { date }) }, `+ ${t('Add task')}`));
     const momSec = momIn ? sec('s-mom', '👩', t("Mom's tasks"), t('Preparing materials for the kids – with deadlines'), secMom, t('Nothing to prepare right now.')) : null;
-    const listEl = momOnly ? momSec : !secOver.length && !secDue.length && !secDaily.length && !secMom.length ? emptyEl : h('div', { class: 'stackc', style: 'gap:18px' }, momSec,
+    const listEl = momOnly ? momSec : !secEv.length && !secOver.length && !secDue.length && !secDaily.length && !secMom.length ? emptyEl : h('div', { class: 'stackc', style: 'gap:18px' }, momSec,
+      secEv.length ? h('section', { class: 'tsec s-ev' }, h('div', { class: 'tsec-h' }, h('span', { class: 'tsec-i', 'aria-hidden': 'true' }, '📅'), h('h2', null, t('Events'))), h('ol', { class: 'items' }, secEv.map((k) => taskItem(k, { showWho })))) : null,
       isToday ? sec('s-over', '⏰', t('Overdue'), t('Deadline has passed – do these first'), secOver, t('Nothing overdue. Well done!')) : null,
       sec('s-due', '📌', isToday ? t('Due today') : t('Homework'), isToday ? t('Homework planned for today or due today') : null, secDue, t('No homework for this day.')),
       sec('s-daily', '🔁', t('Daily tasks'), t('Practice that repeats every week'), secDaily, t('No daily practice on this day.'), true));
@@ -97,11 +99,11 @@
     const weeks = []; for (let d = weekStart(first); d <= last; d = addDays(d, 7)) weeks.push([0, 1, 2, 3, 4, 5, 6].map((i) => addDays(d, i)));
     return [pageHead(monthLabel(ym), t('Tap a day to see its tasks'), h('button', { class: 'btn primary', onclick: () => taskForm(null, { date: today.slice(0, 7) === ym ? today : first }) }, `+ ${t('Add task')}`)),
       h('div', { class: 'toolbar' }, h('button', { class: 'btn secondary sm', onclick: () => shift(-1) }, `‹ ${t('Previous month')}`), ym !== today.slice(0, 7) ? h('button', { class: 'btn ghost sm', onclick: () => { UI.month = today.slice(0, 7); render(); } }, t('This month')) : null, h('button', { class: 'btn secondary sm', onclick: () => shift(1) }, `${t('Next month')} ›`), kidSelect()),
-      h('div', { class: 'card', style: 'overflow:hidden' }, h('div', { class: 'mhead' }, [1, 2, 3, 4, 5, 6, 7].map((i) => h('div', null, dowS(i)))), weeks.map((w) => h('div', { class: 'mrow' }, w.map((d) => { const list = tasksOn(d); const un = list.filter((k) => k.status !== 'done').length; const inM = d.startsWith(ym);
+      h('div', { class: 'card', style: 'overflow:hidden' }, h('div', { class: 'mhead' }, [1, 2, 3, 4, 5, 6, 7].map((i) => h('div', null, dowS(i)))), weeks.map((w) => h('div', { class: 'mrow' }, w.map((d) => { const list = tasksOn(d); const un = list.filter((k) => k.status !== 'done' && !k.event).length; const inM = d.startsWith(ym);
         return h('button', { type: 'button', class: `mcell ${inM ? '' : 'out'} ${d === today ? 'today' : ''}`, 'aria-label': `${fmtLong(d)}: ${t('{0} task(s)', list.length)}`, onclick: () => { UI.date = d; UI.page = 'today'; render(); window.scrollTo(0, 0); } },
           h('div', { class: 'mtop' }, h('span', { class: 'mnum' }, parse(d).getDate()), d < today && un ? h('span', { class: 'mdot', title: t('{0} not finished', un) }) : null),
           list.length ? h('div', { class: `mcnt ${un ? 't-mid' : 't-ok'}` }, t('{0} task(s)', list.length)) : null,
-          h('ul', { class: 'mchips' }, list.slice(0, 3).map((k) => h('li', { class: k.status }, `${k.start ? `${k.start} ` : ''}${k.title}`)), list.length > 3 ? h('li', { style: 'background:transparent;color:var(--faint)' }, t('+{0} more', list.length - 3)) : null)); })))),
+          h('ul', { class: 'mchips' }, list.slice(0, 3).map((k) => h('li', { class: k.event ? 'ev' : k.status }, `${k.event ? '📅 ' : ''}${k.start ? `${k.start} ` : ''}${k.title}`)), list.length > 3 ? h('li', { style: 'background:transparent;color:var(--faint)' }, t('+{0} more', list.length - 3)) : null)); })))),
       h('p', { class: 'small muted row', style: 'margin-top:12px;gap:16px' }, h('span', null, '● ', t('Past day with unfinished tasks')), h('span', null, t('Yellow = doing · Green = done')))];
   };
 
