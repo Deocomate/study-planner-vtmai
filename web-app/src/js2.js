@@ -241,21 +241,8 @@
   /* ---------- child PIN: each child opens their own planner with a password; a signed-in parent skips it ---------- */
   const kidOpen = (r) => !SRV.on || AUTH.isAdmin || LS.get('sp-unlocked', '') === r;
   const switchTo = (r) => { const changed = UI.role !== r; UI.role = r; LS.set('sp-role', r); if (!NAV().some(([k]) => k === UI.page)) UI.page = 'today'; render(); if (changed) showSplash(); };
-  const pinGate = (kid, onOk, sticky) => {
-    let sel = kid; let closeFn = null;
-    const pin = inp({ type: 'password', inputmode: 'numeric', autocomplete: 'off', maxlength: 8, placeholder: '••••', style: 'font-size:1.6rem;letter-spacing:.4em;text-align:center' });
-    const err = h('div', { class: 'err', role: 'alert' });
-    const seg = segEl(KIDS.map((c) => [c, NAME(c)]), sel, (x) => { sel = x; err.textContent = ''; pin.focus(); });
-    const submit = async () => { if (!pin.value) { err.textContent = t('Please enter the password.'); return; }
-      try { const r = await api('/api/auth/kid', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kid: sel, pin: pin.value }) }); const j = await r.json().catch(() => ({}));
-        if (!r.ok || !j.ok) { err.textContent = r.status === 429 ? t('Too many wrong tries. Wait 1 minute and try again.') : t('Wrong password. Try again.'); pin.value = ''; pin.focus(); return; }
-        LS.set('sp-unlocked', sel); if (closeFn) closeFn(); onOk(sel);
-      } catch (e) { err.textContent = t('Could not check the password. Check the internet and try again.'); } };
-    pin.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
-    const mom = sticky ? h('button', { type: 'button', class: 'btn ghost sm', style: 'justify-self:start', onclick: () => showLoginModal(() => { if (closeFn) closeFn(); onOk('parent'); }) }, `🔒 ${NAME(MOM)}`) : null;
-    const go = { label: t('Open'), primary: true, fn: () => { submit(); return false; } };
-    closeFn = modal(t('Who is studying?'), h('div', { class: 'stackc' }, seg, field(t('Password'), pin), err, mom), sticky ? [go] : [{ label: t('Cancel') }, go], sticky);
-    setTimeout(() => pin.focus(), 50); };
+  const enterAs = (r) => { UI.role = r; LS.set('sp-role', r); if (!NAV().some(([k]) => k === UI.page)) UI.page = 'today'; render(); };
+  const pinGate = (kid, onOk, sticky) => showSplash({ kid, onOk, sticky });
   const showLoginModal = (onSuccess) => {
     const fUser = inp({ value: AUTH.user || 'thanhmai', autocomplete: 'username' });
     const fPass = inp({ type: 'password', placeholder: t('Enter password'), autocomplete: 'current-password' });
@@ -315,7 +302,7 @@
     UI.page = 'today';
     render();
     toast(t('Logged out.'));
-    if (!kidOpen(UI.role)) pinGate(UI.role, switchTo, true);
+    if (!kidOpen(UI.role)) pinGate(null, enterAs, true);
   };
 
   const NAV = () => (UI.role === 'parent' ? [['today', t('Today')], ['month', t('Month')], ['perf', t('Performance')], ['rewards', t('Rewards')], ['import', t('Import')], ['students', t('Students')], ['resources', t('Resources')], ['admin', t('Admin')]] : [['today', t('Today')], ['month', t('Month')], ['rewards', t('Rewards')], ['import', t('Import')], ['resources', t('Resources')]]);
@@ -347,7 +334,7 @@
               });
               return;
             }
-            if (r !== 'parent' && !kidOpen(r)) { pinGate(r, switchTo, false); return; }
+            if (r !== 'parent' && !kidOpen(r)) { pinGate(r, enterAs, false); return; }
             switchTo(r);
           }
         }, r === 'parent' ? (SRV.on && !AUTH.isAdmin ? `🔒 ${NAME(MOM)}` : NAME(MOM)) : `${kidOpen(r) ? '' : '🔒 '}${NAME(r)}`)))),
@@ -380,12 +367,14 @@
     rainbow: `<svg viewBox="0 0 120 64"><g fill="none" stroke-width="7" stroke-linecap="round"><path d="M10 60a50 50 0 0 1 100 0" stroke="#ef5b5b"/><path d="M18 60a42 42 0 0 1 84 0" stroke="#f6a04d"/><path d="M26 60a34 34 0 0 1 68 0" stroke="#ffd84d"/><path d="M34 60a26 26 0 0 1 52 0" stroke="#7fc8a9"/><path d="M42 60a18 18 0 0 1 36 0" stroke="#7fb0e3"/></g></svg>`,
   };
   const sticker = (name, cls, style) => { const el = h('span', { class: `stk ${cls}`, style, 'aria-hidden': 'true' }); el.innerHTML = STK[name]; return el; };
-  const showSplash = () => { document.getElementById('splash')?.remove();
+  /* gate { kid, onOk, sticky }: pick a name, then type that child's password; sticky = cannot be skipped */
+  const showSplash = (gate) => { document.getElementById('splash')?.remove();
     const role = UI.role; const name = role === 'parent' ? NAME(MOM) : NAME(role); const kids = role === 'parent' ? PEOPLE : [role];
     const left = D.tasks.filter((k) => kids.includes(k.child) && k.status !== 'done' && !k.event && (k.date === todayStr() || (k.due ? k.due < todayStr() : k.date < todayStr()) && !k.repeat)).length;
     const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 350); document.removeEventListener('keydown', onKey); };
-    const onKey = (e) => { if (e.key === 'Escape' || e.key === 'Enter') close(); };
-    const el = h('div', { id: 'splash', class: 'splash', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Study Planner', onclick: (e) => { if (e.target === el || e.target.closest('.sp-go')) close(); } },
+    const onKey = (e) => { if (gate) { if (e.key === 'Escape' && !gate.sticky) close(); return; } if (e.key === 'Escape' || e.key === 'Enter') close(); };
+    const card = gate ? gateCard(gate, close) : null;
+    const el = h('div', { id: 'splash', class: 'splash', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Study Planner', onclick: (e) => { if (!gate && (e.target === el || e.target.closest('.sp-go'))) close(); } },
       sticker('rainbow', 'a-bob', 'top:3%;left:50%;width:150px;margin-left:-75px;--d:5s'),
       sticker('books', 'a-wiggle', 'top:5%;left:4%;width:120px'), sticker('cloud', 'a-drift', 'top:14%;left:30%;width:90px'),
       sticker('cat', 'a-peek', 'top:6%;right:4%;width:110px'), sticker('star', 'a-spin', 'top:30%;left:5%;width:60px'),
@@ -394,10 +383,31 @@
       sticker('plane', 'a-fly', 'top:18%;left:-10%;width:80px'),
       sticker('pencil', 'a-wiggle', 'bottom:16%;right:6%;width:110px;--d:2.6s'), sticker('books', 'a-bob', 'bottom:6%;right:4%;width:120px;--d:4s'),
       sticker('chick', 'a-walk', 'bottom:3%;left:0;width:74px'), sticker('chick', 'a-hop', 'bottom:18%;left:6%;width:58px'),
-      h('div', { class: 'sp-card' }, h('div', { class: 'sp-hello' }, t('Hi {0}!', name), ' 👋'), h('h1', null, 'Study Planner'),
+      card || h('div', { class: 'sp-card' }, h('div', { class: 'sp-hello' }, t('Hi {0}!', name), ' 👋'), h('h1', null, 'Study Planner'),
         h('p', null, left ? t('{0} task(s) waiting today', left) : t('Nothing waiting today – great!')),
         h('button', { type: 'button', class: 'btn primary sp-go' }, `${t('Start studying')} →`), h('p', { class: 'sp-tip' }, t('Tap anywhere to continue'))));
-    el.dataset.person = themeOf(); document.body.append(el); document.addEventListener('keydown', onKey); setTimeout(() => el.querySelector('.sp-go')?.focus(), 50); };
+    el.dataset.person = themeOf(); if (gate && gate.kid) setTimeout(() => paint(PERSON_THEME[gate.kid])); document.body.append(el); document.addEventListener('keydown', onKey); setTimeout(() => el.querySelector(gate ? '.sp-pin input:not([hidden])' : '.sp-go')?.focus(), 50); };
+  /* show the chosen child's colours while they type their password */
+  const paint = (th) => { const root = document.documentElement; root.setAttribute('data-accent', th); root.setAttribute('data-person', th); root.style.setProperty('--page', checkerUrl(th, THEME)); const sp = document.getElementById('splash'); if (sp) sp.dataset.person = th; };
+  const gateCard = (gate, close) => { let sel = gate.kid || null;
+    const pin = inp({ type: 'password', inputmode: 'numeric', autocomplete: 'off', maxlength: 8, placeholder: '••••', 'aria-label': t('Password'), class: 'input sp-pw' });
+    const err = h('div', { class: 'err', role: 'alert' });
+    const go = h('button', { type: 'button', class: 'btn primary sp-go', onclick: () => submit() }, `${t('Start studying')} →`);
+    const box = h('div', { class: 'sp-pin' }, h('label', { class: 'small soft' }, t('Password')), pin, err, go);
+    const hello = h('div', { class: 'sp-hello' });
+    const names = h('div', { class: 'sp-names', role: 'group', 'aria-label': t('Who is studying?') });
+    const draw = () => { hello.replaceChildren(sel ? t('Hi {0}!', NAME(sel)) : t('Hi!'), ' 👋'); box.hidden = !sel; err.textContent = '';
+      names.replaceChildren(...KIDS.map((c) => h('button', { type: 'button', class: `btn ${sel === c ? 'primary' : 'secondary'}`, 'aria-pressed': String(sel === c), onclick: () => { sel = c; pin.value = ''; paint(PERSON_THEME[c]); draw(); pin.focus(); } }, NAME(c))),
+        h('button', { type: 'button', class: 'btn ghost', onclick: () => showLoginModal(() => { close(); gate.onOk('parent'); }) }, `🔒 ${NAME(MOM)}`)); };
+    const submit = async () => { if (!sel) return; if (!pin.value) { err.textContent = t('Please enter the password.'); pin.focus(); return; }
+      try { const r = await api('/api/auth/kid', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kid: sel, pin: pin.value }) }); const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) { err.textContent = r.status === 429 ? t('Too many wrong tries. Wait 1 minute and try again.') : t('Wrong password. Try again.'); pin.value = ''; pin.focus(); return; }
+        LS.set('sp-unlocked', sel); close(); gate.onOk(sel);
+      } catch (e) { err.textContent = t('Could not check the password. Check the internet and try again.'); } };
+    pin.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    draw();
+    return h('div', { class: 'sp-card' }, hello, h('h1', null, 'Study Planner'), h('p', null, t('Who is studying?')), names, box,
+      gate.sticky ? null : h('button', { type: 'button', class: 'btn ghost sm', style: 'margin-top:8px', onclick: () => { close(); decorate(); } }, t('Cancel'))); };
   /* Animated stickers in the empty space on both sides of the page (wide screens) */
   const sideDeco = () => { if (document.getElementById('sides')) return;
     const L = [['books', 'a-wiggle', 'top:16%;left:2%;width:110px'], ['cat', 'a-peek', 'top:38%;left:3%;width:96px'], ['star', 'a-spin', 'top:58%;left:6%;width:48px'], ['chick', 'a-hop', 'top:72%;left:3%;width:66px'], ['heart', 'a-pop', 'top:88%;left:7%;width:36px']];

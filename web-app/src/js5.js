@@ -27,5 +27,5 @@
   VI_FILL();
   /* pickers added later (e.g. a field shown after a choice) get the custom UI too */
   new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches('select, input[type=date], input[type=time]')) enhance(n); else enhanceIn(n); } }).observe(document.body, { childList: true, subtree: true });
-  SRV_READY.then(() => { render(); migrateFiles(); if (!kidOpen(UI.role)) pinGate(UI.role, (r) => { UI.role = r; LS.set('sp-role', r); render(); showSplash(); }, true); else try { if (!sessionStorage.getItem('sp-splash')) { sessionStorage.setItem('sp-splash', '1'); showSplash(); } } catch (e) { showSplash(); } checkReminders(); setInterval(() => { checkReminders(); if (UI.page === 'today' && UI.date === todayStr()) render(); }, 30000); });
+  SRV_READY.then(() => { render(); migrateFiles(); if (!kidOpen(UI.role)) pinGate(null, enterAs, true); else try { if (!sessionStorage.getItem('sp-splash')) { sessionStorage.setItem('sp-splash', '1'); showSplash(); } } catch (e) { showSplash(); } checkReminders(); setInterval(() => { checkReminders(); if (UI.page === 'today' && UI.date === todayStr()) render(); }, 30000); });
 })();
