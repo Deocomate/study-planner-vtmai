@@ -226,10 +226,13 @@
       if (w.length) { confirmBox(t('Please check this'), w.join(' '), 'Save anyway', commit); return true; } commit(); return true; };
     const actions = [{ label: t('Cancel') }];
     /* a repeating task can be deleted for this day only, or for this day and every later day of the same series */
-    const later = e && k.repeat && k.series ? D.tasks.filter((x) => x.series === k.series && x.child === k.child && x.date >= k.date) : [];
+    const all = e && k.repeat && k.series ? D.tasks.filter((x) => x.series === k.series && x.child === k.child) : [];
+    const later = all.filter((x) => x.date >= k.date);
     const delOne = () => { D.tasks = D.tasks.filter((x) => x.id !== k.id); toast(t('Deleted.')); rerender(); };
-    const delLater = () => { const ids = new Set(later.map((x) => x.id)); D.tasks = D.tasks.filter((x) => !ids.has(x.id)); toast(t('Deleted {0} task(s).', ids.size)); rerender(); };
-    if (e && canEdit(k)) actions.unshift({ label: t('Delete'), danger: true, fn: () => { if (later.length > 1) modal(t('Delete repeating task?'), h('p', { class: 'soft' }, t('"{0}" repeats on {1} day(s) from {2} on.', k.title, later.length, fmtDay(k.date))), [{ label: t('Cancel') }, { label: t('Only this day'), fn: delOne }, { label: t('This day and all later days'), danger: true, fn: delLater }]); else confirmBox(t('Delete this task?'), k.title, 'Delete', delOne, true); } });
+    const delMany = (list) => () => { const ids = new Set(list.map((x) => x.id)); D.tasks = D.tasks.filter((x) => !ids.has(x.id)); toast(t('Deleted {0} task(s).', ids.size)); rerender(); };
+    if (e && canEdit(k)) actions.unshift({ label: t('Delete'), danger: true, fn: () => { if (all.length > 1) { const first = all.reduce((m, x) => (x.date < m ? x.date : m), k.date), last = all.reduce((m, x) => (x.date > m ? x.date : m), k.date);
+        modal(t('Delete repeating task?'), h('p', { class: 'soft' }, t('"{0}" repeats on {1} day(s), from {2} to {3}.', k.title, all.length, fmtDay(first), fmtDay(last))), [{ label: t('Cancel') }, { label: t('Only this day'), fn: delOne },
+          later.length > 1 && later.length < all.length ? { label: t('This day and later days ({0})', later.length), fn: delMany(later) } : null, { label: t('All {0} days', all.length), danger: true, fn: delMany(all) }].filter(Boolean)); } else confirmBox(t('Delete this task?'), k.title, 'Delete', delOne, true); } });
     actions.push({ label: e ? t('Save changes') : t('Add task'), primary: true, fn: run }); modal(e ? t('Edit task') : t('Add task'), body, actions);
   };
 
