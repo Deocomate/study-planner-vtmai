@@ -41,7 +41,7 @@
         
         subs.length ? h('span', { class: 'sd-dots', 'aria-hidden': 'true' }, subs.slice(0, 6).map((s) => h('i', { class: `sub-${s}` }))) : null,
         dues ? h('span', { class: 'sd-due', title: t('{0} due', dues) }, `📌 ${dues}`, h('span', { class: 'sdl' }, ` ${t('due')}`)) : null); })); };
-  const deadlinePanel = (date) => { const end = addDays(date, 6); const ks = D.tasks.filter((k) => who().includes(k.child) && k.due && ((k.due >= date && k.due <= end) || (k.due < date && k.status !== 'done' && date === todayStr()))).sort((a, b) => a.due.localeCompare(b.due) || a.date.localeCompare(b.date));
+  const deadlinePanel = (date) => { const end = addDays(date, 6); const ks = D.tasks.filter((k) => who().includes(k.child) && k.due && ((k.due >= date && k.due <= end) || (k.due < date && k.status !== 'done' && date === todayStr() && carries(k)))).sort((a, b) => a.due.localeCompare(b.due) || a.date.localeCompare(b.date));
     if (!ks.length) return null; const groups = new Map(); ks.forEach((k) => { if (!groups.has(k.due)) groups.set(k.due, []); groups.get(k.due).push(k); }); const showWho = who().length > 1;
     return h('section', { class: 'card dlp' }, h('div', { class: 'dlh' }, h('b', null, `📌 ${t('Deadlines this week')}`), h('span', { class: 'muted small' }, t('{0} task(s)', ks.length))),
       [...groups].map(([due, arr]) => h('div', { class: 'dlg' }, h('div', { class: `dld ${due < todayStr() ? 't-bad' : due === todayStr() ? 't-bad' : ''}` }, `${fmtDay(due)}${due === todayStr() ? ` · ${t('today')}` : ''}`),
@@ -52,15 +52,15 @@
   pages.today = () => {
     const date = UI.date, today = todayStr(), list = tasksOn(date), isToday = date === today; const showWho = who().length > 1; const P = UI.role !== 'parent' ? pointsOf(UI.role) : null;
     
-    const over = isToday ? D.tasks.filter((k) => who().includes(k.child) && isOverdue(k) && !k.repeat).sort((a, b) => (a.due || '9').localeCompare(b.due || '9') || a.date.localeCompare(b.date) || byTime(a, b)) : [];
+    const over = isToday ? D.tasks.filter((k) => who().includes(k.child) && isOverdue(k) && !k.repeat && carries(k)).sort((a, b) => (a.due || '9').localeCompare(b.due || '9') || a.date.localeCompare(b.date) || byTime(a, b)) : [];
     const cls = who().flatMap((c) => blocksOn(c, date).map((b) => ({ ...b, c })));
     const momIn = UI.role === 'parent' && who().includes(MOM); const momOnly = momIn && who().length === 1;
     const ws2 = who().filter((c) => c !== MOM); const mine = (k) => ws2.includes(k.child);
     const secMom = momIn ? D.tasks.filter((k) => k.child === MOM && (k.status !== 'done' ? (k.due || k.date) <= addDays(date, 14) : (k.doneAt || '').slice(0, 10) === todayStr() || k.date === date)).sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || (a.due || a.date).localeCompare(b.due || b.date) || byTime(a, b)) : [];
-    const isOver = (k) => k.status !== 'done' && !k.repeat && !k.event && (k.due ? k.due < today : k.date < today);
+    const isOver = (k) => k.status !== 'done' && !k.repeat && !k.event && carries(k) && (k.due ? k.due < today : k.date < today);
     const secOver = isToday ? D.tasks.filter((k) => mine(k) && isOver(k)).sort((a, b) => byTeacher(a, b) || (a.due || a.date).localeCompare(b.due || b.date) || byTime(a, b)) : [];
     const secEv = list.filter((k) => k.event && mine(k));
-    const secDue = (isToday ? D.tasks.filter((k) => mine(k) && !k.repeat && !k.event && !isOver(k) && (k.date === date || (k.date < date && k.status !== 'done'))) : list.filter((k) => !k.repeat && !k.event && mine(k))).sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || byTeacher(a, b) || byTime(a, b) || (a.due || '9').localeCompare(b.due || '9'));
+    const secDue = (isToday ? D.tasks.filter((k) => mine(k) && !k.repeat && !k.event && !isOver(k) && (k.date === date || (k.date < date && k.status !== 'done' && carries(k)))) : list.filter((k) => !k.repeat && !k.event && mine(k))).sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || byTeacher(a, b) || byTime(a, b) || (a.due || '9').localeCompare(b.due || '9'));
     const secDaily = list.filter((k) => k.repeat && !k.event && mine(k)).sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || byTime(a, b));
     const allT = [...secOver, ...secDue, ...secDaily]; const done = allT.filter((k) => k.status === 'done').length, doing = allT.filter((k) => k.status === 'doing').length, late = secOver.length;
     const out = [pageHead(isToday ? t('Today') : fmtDay(date), fmtLong(date), h('button', { class: 'btn secondary', onclick: () => { UI.sheet = date; UI.page = 'sheet'; render(); }, title: t('Printable page for this day') }, `🖨 ${t('Print sheet')}`), h('button', { class: 'btn primary', onclick: () => taskForm(null, { date }) }, `+ ${t('Add task')}`)),

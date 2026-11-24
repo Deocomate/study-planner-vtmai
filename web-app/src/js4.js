@@ -220,10 +220,10 @@
 
   /* ---------- Print sheet ---------- */
   const sheetSections = (date, c) => { const today = todayStr(); const ref = date; void today; const mine = D.tasks.filter((k) => k.child === c);
-    const isOver = (k) => !!ref && k.status !== 'done' && !k.repeat && !k.event && (k.due ? k.due < ref : k.date < ref);
+    const isOver = (k) => !!ref && k.status !== 'done' && !k.repeat && !k.event && carries(k, ref) && (k.due ? k.due < ref : k.date < ref);
     const over = mine.filter(isOver).sort((a, b) => byTeacher(a, b) || (a.due || a.date).localeCompare(b.due || b.date) || byTime(a, b));
     const ev = mine.filter((k) => k.event && k.date === date);
-    const due = mine.filter((k) => !k.repeat && !k.event && !isOver(k) && (k.date === date || (!!ref && k.date < date && k.status !== 'done'))).sort((a, b) => byTeacher(a, b) || byTime(a, b) || (a.due || '9').localeCompare(b.due || '9'));
+    const due = mine.filter((k) => !k.repeat && !k.event && !isOver(k) && (k.date === date || (!!ref && k.date < date && k.status !== 'done' && carries(k, ref)))).sort((a, b) => byTeacher(a, b) || byTime(a, b) || (a.due || '9').localeCompare(b.due || '9'));
     const daily = mine.filter((k) => k.repeat && k.date === date).sort(byTime);
     return [...(ev.length ? [['ev', t('EVENTS'), ev]] : []), ['over', t('OVERDUE'), over], ['due', t('DUE'), due], ['daily', t('DAILY TASKS'), daily]]; };
   pages.sheet = () => { const date = UI.sheet; const kids = who().filter((c) => c !== MOM || UI.who === MOM);

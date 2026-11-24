@@ -143,6 +143,8 @@
   const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
   const minutesOf = (k) => (k.start && k.end && hm(k.end) > hm(k.start) ? hm(k.end) - hm(k.start) : k.minutes || 30);
   const endMin = (k) => (k.start ? hm(k.start) + minutesOf(k) : null);
+  /* unfinished work only carries over (Overdue) within its own week: from Monday the new week starts clean */
+  const carries = (k, ref = todayStr()) => (k.due && k.due > k.date ? k.due : k.date) >= weekStart(ref);
   const isOverdue = (k) => k.status !== 'done' && !k.repeat && !k.event && k.date < todayStr();
   const isLate = (k) => k.status !== 'done' && k.date === todayStr() && !!k.start && endMin(k) < nowMin();
   const isNow = (k) => k.status !== 'done' && k.date === todayStr() && !!k.start && hm(k.start) <= nowMin() && nowMin() < endMin(k);

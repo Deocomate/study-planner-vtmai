@@ -370,7 +370,7 @@
   /* gate { kid, onOk, sticky }: pick a name, then type that child's password; sticky = cannot be skipped */
   const showSplash = (gate) => { document.getElementById('splash')?.remove();
     const role = UI.role; const name = role === 'parent' ? NAME(MOM) : NAME(role); const kids = role === 'parent' ? PEOPLE : [role];
-    const left = D.tasks.filter((k) => kids.includes(k.child) && k.status !== 'done' && !k.event && (k.date === todayStr() || (k.due ? k.due < todayStr() : k.date < todayStr()) && !k.repeat)).length;
+    const left = D.tasks.filter((k) => kids.includes(k.child) && k.status !== 'done' && !k.event && carries(k) && (k.date === todayStr() || (k.due ? k.due < todayStr() : k.date < todayStr()) && !k.repeat)).length;
     const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 350); document.removeEventListener('keydown', onKey); };
     const onKey = (e) => { if (gate) { if (e.key === 'Escape' && !gate.sticky) close(); return; } if (e.key === 'Escape' || e.key === 'Enter') close(); };
     const card = gate ? gateCard(gate, close) : null;
