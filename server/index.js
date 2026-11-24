@@ -6,6 +6,7 @@
 //   POST /api/auth/change-password– change admin password { currentPassword, newPassword, newUser }
 //   POST /api/auth/kid            – check a child's PIN { kid, pin } → { ok } (a few wrong tries pause it)
 //   POST /api/auth/kid-pin        – set a child's PIN { kid, pin } (admin)
+//   POST /api/drive               – { url }: download a shared Google Drive / Sheets file for the Import page → raw bytes, X-Kind: csv|xlsx
 //   GET  /api/state               – the whole planner state  { app, state, rev, epoch, updatedAt } (public)
 //   GET  /api/state/rev           – only { rev, epoch } (cheap polling, public)
 //   PUT  /api/state               – save { state, epoch } (POST works too, for sendBeacon)
@@ -23,6 +24,7 @@ import { join, dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openStore } from './store.js';
 import { exportZip, importZip, makeBackupDir } from './backup.js';
+import { fetchDrive } from './drive.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const env = process.env;
@@ -187,6 +189,18 @@ async function handle(req, res) {
     if (!/^\d{4,8}$/.test(pin)) return json(res, 400, { ok: false, error: 'Mật khẩu phải là 4 đến 8 chữ số' });
     store.setKidPin(kid, pin);
     return json(res, 200, { ok: true });
+  }
+
+  if (p === '/api/drive' && M === 'POST') {
+    const body = await readJson(req, 8 * 1024);
+    try {
+      const f = await fetchDrive(body && body.url, MAX_UPLOAD);
+      return send(res, 200, f.data, { 'Content-Type': 'application/octet-stream', 'X-Kind': f.kind, 'Cache-Control': 'no-store' });
+    } catch (e) {
+      const code = e.code === 400 || e.code === 403 || e.code === 413 ? e.code : 502;
+      if (code === 502) console.error('drive fetch failed', e);
+      return json(res, code, { ok: false, error: code === 400 ? 'bad_link' : code === 403 ? 'not_shared' : code === 413 ? 'too_large' : 'fetch_failed' });
+    }
   }
 
   // State endpoints (public for viewing by Ben & Shin, and saving updates)

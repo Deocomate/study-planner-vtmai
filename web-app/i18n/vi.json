@@ -451,5 +451,16 @@
   "Children's passwords": "Mật khẩu của các con",
   "Each child types their password to open their planner. Use 4 to 8 digits.": "Mỗi bạn nhập mật khẩu riêng để vào trang của mình. Dùng 4 đến 8 chữ số.",
   "Could not save.": "Không lưu được.",
-  "Hi!": "Chào bạn!"
+  "Hi!": "Chào bạn!",
+  "Google Drive or Google Sheets link": "Link Google Drive hoặc Google Sheets",
+  "Paste a link first.": "Hãy dán link trước.",
+  "Reading…": "Đang đọc…",
+  "This is not a Google Drive or Google Sheets link.": "Đây không phải link Google Drive hay Google Sheets.",
+  "Could not open the file. In Google Drive choose Share → \"Anyone with the link\", then try again.": "Không mở được file. Trong Google Drive chọn Chia sẻ → \"Bất kỳ ai có đường liên kết\", rồi thử lại.",
+  "The file is too big.": "File quá lớn.",
+  "Could not get the file. Try again later.": "Không lấy được file. Thử lại sau nhé.",
+  "Read from link": "Đọc từ link",
+  "Or paste a Google Drive link": "Hoặc dán link Google Drive",
+  "Google Sheets or Excel file on Drive": "Google Sheets hoặc file Excel trên Drive",
+  "The file must be shared: Share → \"Anyone with the link\". For a Google Sheet, the tab open in the link is read.": "File phải được chia sẻ: Chia sẻ → \"Bất kỳ ai có đường liên kết\". Với Google Sheets, app đọc trang tính (tab) đang mở trong link."
 }
