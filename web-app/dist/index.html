@@ -942,13 +942,6 @@ body { background-size: 560px 560px; }
         subs.length ? h('span', { class: 'sd-dots', 'aria-hidden': 'true' }, subs.slice(0, 6).map((s) => h('i', { class: `sub-${s}` }))) : null,
         ...list.filter((k) => k.event).map((k) => h('span', { class: 'sd-ev', title: k.title }, `📅 ${k.title}`)),
         dues ? h('span', { class: 'sd-due', title: t('{0} due', dues) }, `📌 ${dues}`, h('span', { class: 'sdl' }, ` ${t('due')}`)) : null); })); };
-  const deadlinePanel = (date) => { const end = addDays(date, 6); const ks = D.tasks.filter((k) => who().includes(k.child) && k.due && ((k.due >= date && k.due <= end) || (k.due < date && k.status !== 'done' && date === todayStr() && carries(k)))).sort((a, b) => a.due.localeCompare(b.due) || a.date.localeCompare(b.date));
-    if (!ks.length) return null; const groups = new Map(); ks.forEach((k) => { if (!groups.has(k.due)) groups.set(k.due, []); groups.get(k.due).push(k); }); const showWho = who().length > 1;
-    return h('section', { class: 'card dlp' }, h('div', { class: 'dlh' }, h('b', null, `📌 ${t('Deadlines this week')}`), h('span', { class: 'muted small' }, t('{0} task(s)', ks.length))),
-      [...groups].map(([due, arr]) => h('div', { class: 'dlg' }, h('div', { class: `dld ${due < todayStr() ? 't-bad' : due === todayStr() ? 't-bad' : ''}` }, `${fmtDay(due)}${due === todayStr() ? ` · ${t('today')}` : ''}`),
-        arr.map((k) => h('button', { type: 'button', class: `dlr sub-${skey(k.subject)} ${k.status === 'done' ? 'is-done' : ''}`, onclick: () => { UI.date = k.date; render(); } }, h('i'), h('span', { class: 'dlt' }, k.title, showWho ? h('small', null, ` · ${NAME(k.child)}`) : null),
-          h('span', { class: `dls ${k.status === 'done' ? 't-ok' : (k.date > k.due && k.child !== MOM) || k.due < todayStr() ? 't-bad' : 'muted'}` }, k.status === 'done' ? '✓' : t('do {0}', fmtDay(k.date))))))));
-  };
   /* tasks finished this week (by the day they were ticked), newest day first */
   const donePanel = (date) => { const ws = weekStart(date), we = addDays(ws, 6); const doneDay = (k) => (k.doneAt ? ymd(new Date(k.doneAt)) : k.date);
     const seen = new Set(); const ks = D.tasks.filter((k) => who().includes(k.child) && k.status === 'done' && !k.event && doneDay(k) >= ws && doneDay(k) <= we)
@@ -995,7 +988,7 @@ body { background-size: 560px 560px; }
     const clsIcon = (n) => (/piano|music|nhạc|đàn/i.test(n) ? '🎹' : /bóng|basket|cầu lông|badminton|bơi|swim|football|sport|võ/i.test(n) ? '🏀' : /debate/i.test(n) ? '🎤' : /writing|viết/i.test(n) ? '✍️' : /science|khoa/i.test(n) ? '🔬' : /math|toán/i.test(n) ? '📐' : /english|cindy|anh|esl|efl/i.test(n) ? '📖' : '🎒');
     const clsBox = extra.length ? h('section', { class: 'xcls' }, h('div', { class: 'xcls-h' }, h('b', null, `🎒 ${t('Extra classes')}`), h('span', { class: 'muted small' }, fmtDay(date))),
       extra.map((b, i) => h('div', { class: `xc xc${i % 5}` }, h('span', { class: 'xc-i', 'aria-hidden': 'true' }, clsIcon(b.t)), h('div', { class: 'xc-b' }, h('div', { class: 'xc-n' }, b.t), h('div', { class: 'xc-t tab' }, `${b.s} – ${b.e}`)), showWho ? h('span', { class: 'xc-w' }, NAME(b.c)) : null))) : null;
-    const side = [clsBox, donePanel(date), deadlinePanel(date)].filter(Boolean);
+    const side = [clsBox, donePanel(date)].filter(Boolean);
     out.push(h('div', { class: 'daygrid' }, h('div', { style: 'min-width:0' }, listEl), side.length ? h('div', { class: 'side' }, side) : null));
     if (D.links.length) out.push(resourcesBox());
     return out;
