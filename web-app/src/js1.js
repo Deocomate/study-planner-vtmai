@@ -63,8 +63,15 @@
   try { D = JSON.parse(LS.get(KEY, 'null')) || fresh(); } catch (e) { D = fresh(); }
   /* an event (exam, school trip…) is a calendar note, not work: shown first, never ticked, counted or carried over */
   const looksEvent = (s) => /^\s*(thi|kiểm tra)(?=[\s\-:(]|$)/i.test(s || '');
+  /* same child, day and task name (ignoring bullets, spaces, case) = the same task */
+  const tkey = (k) => `${k.child}|${k.date}|${String(k.title || '').toLowerCase().replace(/^[\s•·*–-]+/, '').replace(/\s+/g, ' ').trim()}`;
+  /* the same task added twice (e.g. a sheet imported twice): keep one, a finished copy first; finished copies are never removed */
+  const dropDupes = () => { const keep = new Map(), drop = new Set();
+    for (const k of D.tasks) { if (k.event) continue; const key = tkey(k), p = keep.get(key); if (!p) { keep.set(key, k); continue; }
+      if (k.status !== 'done') drop.add(k.id); else if (p.status !== 'done') { drop.add(p.id); keep.set(key, k); } }
+    if (drop.size) D.tasks = D.tasks.filter((k) => !drop.has(k.id)); return drop.size; };
   const ensure = () => { const f = fresh(); for (const k of Object.keys(f)) if (D[k] === undefined) D[k] = f[k]; D.rules = Object.assign(f.rules, D.rules); D.names = Object.assign(f.names, D.names);
-    D.tasks.forEach((k) => { if (k.series && !k.repeat) k.repeat = true; if (k.event === undefined && looksEvent(k.title)) k.event = true; }); /* repeating tasks made in the task form: daily, never carried over */ };
+    D.tasks.forEach((k) => { if (k.series && !k.repeat) k.repeat = true; if (k.event === undefined && looksEvent(k.title)) k.event = true; }); dropDupes(); /* repeating tasks made in the task form: daily, never carried over */ };
   ensure();
   /* ---------- server sync: when the page is served by the Node backend (server/), the state lives in its database.
      Without a backend (/api/state missing) everything stays in this browser as before. ---------- */
@@ -95,7 +102,8 @@
       }
     } catch (e) { /* offline */ }
   };
-  const adopt = (j) => { SRV.rev = j.rev; SRV.epoch = j.epoch; if (j.state) { D = j.state; ensure(); LS.set(KEY, JSON.stringify(D)); FIRST_RUN = false; } };
+  const adopt = (j) => { SRV.rev = j.rev; SRV.epoch = j.epoch; if (j.state) { const n0 = (j.state.tasks || []).length; D = j.state; ensure(); LS.set(KEY, JSON.stringify(D)); FIRST_RUN = false;
+    if (SRV.on && D.tasks.length < n0) { SRV.dirty = true; clearTimeout(SRV.timer); SRV.timer = setTimeout(pushState, 400); } } };   // duplicates removed: save the clean list
   const pushState = async () => { clearTimeout(SRV.timer); if (!SRV.on) return; if (SRV.busy) { SRV.timer = setTimeout(pushState, 300); return; }
     SRV.busy = true; SRV.dirty = false;
     try { const r = await api('/api/state', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: D, epoch: SRV.epoch }) });
@@ -153,8 +161,6 @@
   const labelOf = (k) => [k.subject && k.subject !== 'Other' ? k.subject : '', k.teacher].filter(Boolean).join(' · ');
   const who = () => (UI.role === 'parent' ? (UI.who === 'all' ? PEOPLE : [UI.who]) : [UI.role]);
   const byTime = (a, b) => (a.start ? 0 : 1) - (b.start ? 0 : 1) || (a.start || '').localeCompare(b.start || '') || (a.order ?? 9999) - (b.order ?? 9999) || a.title.localeCompare(b.title);
-  /* same child, day and task name (ignoring bullets, spaces, case) = the same task */
-  const tkey = (k) => `${k.child}|${k.date}|${String(k.title || '').toLowerCase().replace(/^[s•·*-–]+/, '').replace(/s+/g, ' ').trim()}`;
   /* a daily task added more than once (e.g. the same sheet imported twice) shows as one row per day; a finished copy wins */
   const oneDaily = (list) => { const at = new Map(), out = []; for (const k of list) { if (!k.repeat) { out.push(k); continue; } const key = tkey(k); if (!at.has(key)) { at.set(key, out.length); out.push(k); } else if (out[at.get(key)].status !== 'done' && k.status === 'done') out[at.get(key)] = k; } return out; };
   const tasksOn = (date, kids) => oneDaily(D.tasks.filter((k) => (kids || who()).includes(k.child) && k.date === date)).sort((a, b) => (b.event ? 1 : 0) - (a.event ? 1 : 0) || byTime(a, b));
